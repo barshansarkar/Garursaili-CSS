@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Garur-CSS Playground</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue"; margin: 0; padding: 24px; background:#fafafa; }
+      .wrap{ display:grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items:start; }
+      textarea { width:100%; height:240px; font-family: monospace; font-size:14px; padding:12px; box-sizing:border-box; }
+      pre { background:#fff; padding:12px; border-radius:6px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); height:240px; overflow:auto; }
+      label{ font-weight:600; margin-bottom:6px; display:block; }
+      .controls{ margin-bottom:12px; }
+      button{ padding:8px 12px; border-radius:6px; border:1px solid #ddd; background:#fff; cursor:pointer; }
+      .preview { padding:16px; background:#fff; border-radius:8px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+      .help{ font-size:13px; color:#666; margin-top:12px; }
+    </style>
+  </head>
+  <body>
+    <h1>Garur-CSS Playground</h1>
+    <div class="controls">
+      <button id="btnBuild">Build CSS</button>
+      <button id="btnClear">Clear</button>
+      <span class="help">Enter class tokens (space separated). Server must be running: <code>node playground/server.js</code></span>
+    </div>
+
+    <div class="wrap">
+      <div>
+        <label>Class tokens</label>
+        <textarea id="clsInput" placeholder="e.g. p-6 bg-blue-500 hover:bg-blue-700 text-white"></textarea>
+        <div style="margin-top:12px">
+          <label>Live preview HTML</label>
+          <div class="preview" id="preview">
+            <button class="px-4 py-2 rounded bg-blue-500 text-white">Button</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label>Generated CSS</label>
+        <pre id="cssOut">/* Generated CSS will appear here */</pre>
+        <label style="margin-top:8px">Per-class output</label>
+        <pre id="perClass">{} </pre>
+      </div>
+    </div>
+
+    <script>
+      const api = location.origin + "/api/build";
+      const btn = document.getElementById("btnBuild");
+      const btnClear = document.getElementById("btnClear");
+      const input = document.getElementById("clsInput");
+      const cssOut = document.getElementById("cssOut");
+      const perClass = document.getElementById("perClass");
+      const preview = document.getElementById("preview");
+
+      btn.addEventListener("click", async () => {
+        const classes = input.value.trim();
+        if (!classes) { cssOut.textContent = "/* empty */"; perClass.textContent = "{}"; return; }
+        try {
+          const res = await fetch(api, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ classes })
+          });
+          const json = await res.json();
+          cssOut.textContent = json.css || "/* no output */";
+          perClass.textContent = JSON.stringify(json.perClass || {}, null, 2);
+
+          // apply generated CSS to preview by injecting a style tag
+          let style = document.getElementById("__garur_playground_style");
+          if (!style) { style = document.createElement("style"); style.id = "__garur_playground_style"; document.head.appendChild(style); }
+          style.textContent = json.css || "";
+
+          // apply classes to preview example (first token sequence)
+          const first = classes.split(/\s+/).slice(0,6).join(" ");
+          const btnElem = preview.querySelector("button");
+          btnElem.className = first;
+        } catch (e) {
+          cssOut.textContent = "/* Error: " + e + " */";
+        }
+      });
+
+      btnClear.addEventListener("click", () => {
+        input.value = "";
+        cssOut.textContent = "/* Generated CSS will appear here */";
+        perClass.textContent = "{}";
+        const s = document.getElementById("__garur_playground_style");
+        if (s) s.remove();
+      });
+
+      // sample starter
+      input.value = "p-4 bg-blue-500 text-white rounded hover:bg-blue-700";
+    </script>
+  </body>
+</html>

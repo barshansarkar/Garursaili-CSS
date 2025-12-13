@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GarurCSS Playground</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #0d0d0d;
+      color: white;
+      margin: 0;
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 320px;
+      background: rgba(255,255,255,0.06);
+      backdrop-filter: blur(8px);
+      padding: 16px;
+      border-right: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .input-box {
+      width: 100%;
+      height: 200px;
+      padding: 12px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #eee;
+      outline: none;
+      resize: none;
+    }
+
+    .preview {
+      flex: 1;
+      padding: 20px;
+      overflow: auto;
+    }
+
+    #preview-box {
+      padding: 40px;
+      border-radius: 12px;
+      background: #222;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="sidebar">
+    <h2>Garur-CSS Playground</h2>
+    <p>Write Utilities Here:</p>
+    <textarea id="input" class="input-box" placeholder="e.g. p-10 text-red bg-dark glass"></textarea>
+    <button id="compileBtn">Compile GarurCSS</button>
+
+    <h3>Generated CSS</h3>
+    <pre id="cssOutput" style="background:#111; padding:12px; border-radius:8px; height:200px; overflow:auto;"></pre>
+  </div>
+
+  <div class="preview">
+    <h2>Preview</h2>
+    <div id="preview-box">Hello GarurCSS 🔱</div>
+  </div>
+
+  <script src="./garur-play.js"></script>
+</body>
+</html>
+
+<script src="s.js"></script>

@@ -1,0 +1,59 @@
+yarn run v1.22.22
+$ tsc && rollup -c && node dist/cli.js
+[36m
+[1msrc/index.ts[22m → [1mdist/garur.esm.js, dist/garur.cjs[22m...[39m
+(node:9519) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/barshan/Desktop/GARUR-CSS/rollup.config.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/barshan/Desktop/GARUR-CSS/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[32mcreated [1mdist/garur.esm.js, dist/garur.cjs[22m in [1m4.5s[22m[39m
+[36m
+[1msrc/cli.ts[22m → [1mdist/cli.js[22m...[39m
+[32mcreated [1mdist/cli.js[22m in [1m3.8s[22m[39m
+
+   ██████╗  █████╗  ██████╗  ██╗   ██╗ ██████╗
+  ██╔════╝ ██╔══██╗ ██╔══██╗ ██║   ██║ ██╔══██╗
+  ██║  ███╗███████║ ██████╔╝ ██║   ██║ ██████╔╝
+  ██║   ██║██╔══██║ ██╔══██╗ ██║   ██║ ██╔══██╗
+  ╚██████╔╝██║  ██║ ██║  ██║ ╚██████╔╝ ██║  ██║
+   ╚═════╝ ╚═╝  ╚═╝ ╚═╝  ╚═╝  ╚═════╝  ╚═╝  ╚═╝ v1.0.0
+
+Ultra-fast atomic CSS engine • Built for speed & joy
+
+Scanning patterns: /home/barshan/Desktop/GARUR-CSS/**/*.{html,ts,js,jsx,tsx}
+Output file:       /home/barshan/Desktop/GARUR-CSS/dist/garur.css
+
+
+=== CACHE DEBUG ===
+
+Files in cache:    0
+Classes in cache:  0
+Classes in files:  0
+Orphaned classes:  0
+
+- Running Garur-CSS JIT engine...
+🗑️  Pruning 0 orphaned classes
+🎨 Injecting enhanced animations...
+
+=== CACHE DEBUG ===
+
+Files in cache:    4850
+Classes in cache:  891
+Classes in files:  1934
+Orphaned classes:  0
+
+✅ Generated CSS
+
+=== Garur-CSS JIT Report ===
+
+Files scanned         4,850
+Class occurrences     3,968
+Unique classes        1,934
+Utilities generated   1,700
+CSS size              180.68 KB
+
+Output written to → dist/garur.css
+
+Atomic CSS delivered hotter than a fresh GPU.
+
+Done in 43.01s.

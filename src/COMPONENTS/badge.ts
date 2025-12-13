@@ -1,0 +1,892 @@
+/**
+ * ---------------------------------------------------------------------
+ *  GARUR-CSS — Ultra-fast Atomic CSS Engine
+ *  Author: Barshan Sarkar
+ *  Version: 1.0.0
+ *  License: MIT
+ * ---------------------------------------------------------------------
+ *
+ *  This CLI powers the Garur-CSS ecosystem. It handles:
+ *    • SSC ( SUPER SONIC CYCLONE ) compilation of utility classes
+ *    • File scanning across HTML / JS / TS / JSX / TSX
+ *    • Cache management and orphan-class detection
+ *    • Config file creation (garur.config.js)
+ *    • Plugin boilerplate generation
+ *    • Watch mode for real-time builds ,, (coming soon)
+ *
+ *  Technologies:
+ *    - TypeScript
+ *    - Rollup bundling (CJS-compatible output)
+ *    - Node.js (CLI execution via shebang)
+ *
+ *  Notes for contributors:
+ *    • Keep the CLI ESM/CJS compatible.
+ *    • Avoid dynamic require unless wrapped safely.
+ *    • Keep output messages clean, fast, and developer-friendly.
+ *
+ *  Made in India.
+ * ---------------------------------------------------------------------
+ */
+
+import { ComponentBase } from "../components";
+import {
+  surfaceAltLight,
+  borderColorDark,
+  borderColorLight,
+  surfaceAltDark,
+  primary,
+  primaryDark,
+  primaryLight,
+  success,
+  successDark,
+  successLight,
+  danger,
+  dangerDark,
+  warning,
+  warningDark,
+  surfaceDark,
+  info,
+  infoDark,
+  radiusSm,
+  blurGlass,
+  standardTransition,
+  textDark,
+  shadowSm,
+  shadowMd,
+  radiusMd,
+  textLight
+} from "../CORECONST";
+
+export const badges: Record<string, ComponentBase> = {
+  badge: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      textAlign: "center",
+      whiteSpace: "nowrap",
+      verticalAlign: "baseline",
+      transition: standardTransition,
+      userSelect: "none",
+      WebkitUserSelect: "none",
+      MozUserSelect: "none",
+      msUserSelect: "none",
+      background: surfaceAltLight,
+      color: textDark,
+      border: `1px solid ${borderColorLight}`,
+
+      "&:hover": {
+        transform: "translateY(-1px)",
+        boxShadow: shadowSm,
+      },
+
+      "@media (max-width: 640px)": {
+        fontSize: "0.6875rem",
+        padding: "0.1875rem 0.5rem",
+      },
+    },
+  },
+
+  badgePrimary: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: `linear-gradient(135deg, ${primaryDark}, ${primary})`,
+      color: "#fff",
+      border: "none",
+      boxShadow: shadowSm,
+
+      "&:hover": {
+        transform: "translateY(-1px)",
+        boxShadow: shadowMd,
+        background: `linear-gradient(135deg, ${primary}, ${primaryLight})`,
+      },
+    },
+  },
+
+  badgeSuccess: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: `linear-gradient(135deg, ${successDark}, ${success})`,
+      color: "#fff",
+      border: "none",
+      boxShadow: shadowSm,
+
+      "&:hover": {
+        transform: "translateY(-1px)",
+        boxShadow: shadowMd,
+      },
+    },
+  },
+
+  badgeDanger: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: `linear-gradient(135deg, ${dangerDark}, ${danger})`,
+      color: "#fff",
+      border: "none",
+      boxShadow: shadowSm,
+
+      "&:hover": {
+        transform: "translateY(-1px)",
+        boxShadow: shadowMd,
+      },
+    },
+  },
+
+  badgeWarning: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: `linear-gradient(135deg, ${warningDark}, ${warning})`,
+      color: textDark,
+      border: "none",
+      boxShadow: shadowSm,
+
+      "&:hover": {
+        transform: "translateY(-1px)",
+        boxShadow: shadowMd,
+      },
+    },
+  },
+
+  badgeInfo: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: `linear-gradient(135deg, ${infoDark}, ${info})`,
+      color: "#fff",
+      border: "none",
+      boxShadow: shadowSm,
+
+      "&:hover": {
+        transform: "translateY(-1px)",
+        boxShadow: shadowMd,
+      },
+    },
+  },
+
+  badgeOutline: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: "transparent",
+      color: textDark,
+      border: `1px solid ${borderColorLight}`,
+      boxShadow: "none",
+
+      "&:hover": {
+        background: surfaceAltLight,
+        transform: "translateY(-1px)",
+        boxShadow: shadowSm,
+      },
+    },
+  },
+
+  badgeOutlinePrimary: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: "transparent",
+      color: primary,
+      border: `1px solid ${primary}`,
+      boxShadow: "none",
+
+      "&:hover": {
+        background: primary,
+        color: "#fff",
+        transform: "translateY(-1px)",
+        boxShadow: shadowSm,
+      },
+    },
+  },
+
+  badgeOutlineSuccess: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: "transparent",
+      color: success,
+      border: `1px solid ${success}`,
+      boxShadow: "none",
+
+      "&:hover": {
+        background: success,
+        color: "#fff",
+        transform: "translateY(-1px)",
+        boxShadow: shadowSm,
+      },
+    },
+  },
+
+  badgeOutlineDanger: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: "transparent",
+      color: danger,
+      border: `1px solid ${danger}`,
+      boxShadow: "none",
+
+      "&:hover": {
+        background: danger,
+        color: "#fff",
+        transform: "translateY(-1px)",
+        boxShadow: shadowSm,
+      },
+    },
+  },
+
+  badgeOutlineWarning: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: "transparent",
+      color: warning,
+      border: `1px solid ${warning}`,
+      boxShadow: "none",
+
+      "&:hover": {
+        background: warning,
+        color: textDark,
+        transform: "translateY(-1px)",
+        boxShadow: shadowSm,
+      },
+    },
+  },
+
+  badgeOutlineInfo: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: "transparent",
+      color: info,
+      border: `1px solid ${info}`,
+      boxShadow: "none",
+
+      "&:hover": {
+        background: info,
+        color: "#fff",
+        transform: "translateY(-1px)",
+        boxShadow: shadowSm,
+      },
+    },
+  },
+
+  badgeXs: {
+    base: {
+      padding: "0.125rem 0.375rem",
+      fontSize: "0.625rem",
+      borderRadius: radiusSm,
+      lineHeight: "1",
+      minWidth: "1rem",
+      height: "1rem",
+
+      "@media (max-width: 640px)": {
+        padding: "0.0625rem 0.25rem",
+        fontSize: "0.5625rem",
+        minWidth: "0.875rem",
+        height: "0.875rem",
+      },
+    },
+  },
+
+  badgeSm: {
+    base: {
+      padding: "0.1875rem 0.5rem",
+      fontSize: "0.6875rem",
+      borderRadius: radiusSm,
+      lineHeight: "1",
+      minWidth: "1.125rem",
+      height: "1.125rem",
+    },
+  },
+
+  badgeLg: {
+    base: {
+      padding: "0.375rem 0.75rem",
+      fontSize: "0.8125rem",
+      borderRadius: radiusMd,
+      lineHeight: "1.2",
+      minWidth: "1.5rem",
+      height: "1.5rem",
+    },
+  },
+
+  badgeXl: {
+    base: {
+      padding: "0.5rem 1rem",
+      fontSize: "0.875rem",
+      borderRadius: radiusMd,
+      lineHeight: "1.2",
+      minWidth: "1.75rem",
+      height: "1.75rem",
+    },
+  },
+
+  badgePill: {
+    base: {
+      borderRadius: "50rem",
+      padding: "0.25rem 0.75rem",
+    },
+  },
+
+  badgePillPrimary: {
+    base: {
+      borderRadius: "50rem",
+      padding: "0.25rem 0.75rem",
+      background: `linear-gradient(135deg, ${primaryDark}, ${primary})`,
+      color: "#fff",
+      border: "none",
+    },
+  },
+
+  badgePillOutline: {
+    base: {
+      borderRadius: "50rem",
+      padding: "0.25rem 0.75rem",
+      background: "transparent",
+      border: `1px solid ${borderColorLight}`,
+    },
+  },
+
+  badgeWithIcon: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "0.375rem",
+      padding: "0.25rem 0.625rem 0.25rem 0.5rem",
+
+      "& .badge-icon": {
+        fontSize: "0.625rem",
+        width: "0.75rem",
+        height: "0.75rem",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      },
+    },
+  },
+
+  badgeIconPrimary: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "0.375rem",
+      padding: "0.25rem 0.625rem 0.25rem 0.5rem",
+      background: `linear-gradient(135deg, ${primaryDark}, ${primary})`,
+      color: "#fff",
+
+      "& .badge-icon": {
+        fontSize: "0.625rem",
+      },
+    },
+  },
+
+  badgeIconSuccess: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "0.375rem",
+      padding: "0.25rem 0.625rem 0.25rem 0.5rem",
+      background: `linear-gradient(135deg, ${successDark}, ${success})`,
+      color: "#fff",
+
+      "& .badge-icon": {
+        fontSize: "0.625rem",
+      },
+    },
+  },
+
+  navBadge: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      minWidth: "1.25rem",
+      height: "1.25rem",
+      padding: "0 0.375rem",
+      borderRadius: "0.625rem",
+      background: `linear-gradient(135deg, ${dangerDark}, ${danger})`,
+      color: "#fff",
+      fontSize: "0.75rem",
+      fontWeight: "700",
+      lineHeight: "1",
+      border: "2px solid #fff",
+      boxShadow: shadowSm,
+      position: "absolute",
+      top: "-0.5rem",
+      right: "-0.5rem",
+      zIndex: "10",
+      animation: "pulse 2s infinite",
+
+      ".dark &": {
+        border: "2px solid #1f2937",
+      },
+
+      "@media (max-width: 640px)": {
+        minWidth: "1rem",
+        height: "1rem",
+        fontSize: "0.625rem",
+        top: "-0.375rem",
+        right: "-0.375rem",
+      },
+    },
+  },
+
+  navBadgeSuccess: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      minWidth: "1.25rem",
+      height: "1.25rem",
+      padding: "0 0.375rem",
+      borderRadius: "0.625rem",
+      background: `linear-gradient(135deg, ${successDark}, ${success})`,
+      color: "#fff",
+      fontSize: "0.75rem",
+      fontWeight: "700",
+      lineHeight: "1",
+      border: "2px solid #fff",
+      boxShadow: shadowSm,
+      position: "absolute",
+      top: "-0.5rem",
+      right: "-0.5rem",
+      zIndex: "10",
+
+      ".dark &": {
+        border: "2px solid #1f2937",
+      },
+    },
+  },
+
+  navBadgeWarning: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      minWidth: "1.25rem",
+      height: "1.25rem",
+      padding: "0 0.375rem",
+      borderRadius: "0.625rem",
+      background: `linear-gradient(135deg, ${warningDark}, ${warning})`,
+      color: textDark,
+      fontSize: "0.75rem",
+      fontWeight: "700",
+      lineHeight: "1",
+      border: "2px solid #fff",
+      boxShadow: shadowSm,
+      position: "absolute",
+      top: "-0.5rem",
+      right: "-0.5rem",
+      zIndex: "10",
+
+      ".dark &": {
+        border: "2px solid #1f2937",
+      },
+    },
+  },
+
+  badgeStatus: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "0.375rem",
+      padding: "0.375rem 0.75rem",
+      borderRadius: radiusMd,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+
+      "& .status-dot": {
+        width: "0.5rem",
+        height: "0.5rem",
+        borderRadius: "50%",
+        backgroundColor: "currentColor",
+      },
+    },
+  },
+
+  badgeStatusOnline: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "0.375rem",
+      padding: "0.375rem 0.75rem",
+      borderRadius: radiusMd,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      background: "rgba(16, 185, 129, 0.1)",
+      color: success,
+      border: `1px solid rgba(16, 185, 129, 0.2)`,
+
+      "& .status-dot": {
+        width: "0.5rem",
+        height: "0.5rem",
+        borderRadius: "50%",
+        backgroundColor: success,
+        animation: "pulse 2s infinite",
+      },
+    },
+  },
+
+  badgeStatusAway: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "0.375rem",
+      padding: "0.375rem 0.75rem",
+      borderRadius: radiusMd,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      background: "rgba(245, 158, 11, 0.1)",
+      color: warning,
+      border: `1px solid rgba(245, 158, 11, 0.2)`,
+
+      "& .status-dot": {
+        width: "0.5rem",
+        height: "0.5rem",
+        borderRadius: "50%",
+        backgroundColor: warning,
+      },
+    },
+  },
+
+  badgeStatusOffline: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "0.375rem",
+      padding: "0.375rem 0.75rem",
+      borderRadius: radiusMd,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      background: "rgba(239, 68, 68, 0.1)",
+      color: danger,
+      border: `1px solid rgba(239, 68, 68, 0.2)`,
+
+      "& .status-dot": {
+        width: "0.5rem",
+        height: "0.5rem",
+        borderRadius: "50%",
+        backgroundColor: danger,
+      },
+    },
+  },
+
+  badgeDark: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: surfaceAltDark,
+      color: textLight,
+      border: `1px solid ${borderColorDark}`,
+
+      "&:hover": {
+        background: surfaceDark,
+        transform: "translateY(-1px)",
+        boxShadow: shadowSm,
+      },
+    },
+  },
+
+  badgePrimaryDark: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: `linear-gradient(135deg, ${primaryLight}, ${primary})`,
+      color: textDark,
+      border: "none",
+
+      "&:hover": {
+        transform: "translateY(-1px)",
+        boxShadow: shadowMd,
+      },
+    },
+  },
+
+  badgeSuccessDark: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: `linear-gradient(135deg, ${successLight}, ${success})`,
+      color: textDark,
+      border: "none",
+
+      "&:hover": {
+        transform: "translateY(-1px)",
+        boxShadow: shadowMd,
+      },
+    },
+  },
+
+  badgeOutlineDark: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: "transparent",
+      color: textLight,
+      border: `1px solid ${borderColorDark}`,
+
+      "&:hover": {
+        background: surfaceAltDark,
+        transform: "translateY(-1px)",
+      },
+    },
+  },
+
+  badgeOutlinePrimaryDark: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: "transparent",
+      color: primaryLight,
+      border: `1px solid ${primaryLight}`,
+
+      "&:hover": {
+        background: primaryLight,
+        color: textDark,
+        transform: "translateY(-1px)",
+      },
+    },
+  },
+
+  badgeGlass: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: "rgba(255, 255, 255, 0.1)",
+      color: textLight,
+      border: `1px solid rgba(255, 255, 255, 0.2)`,
+      backdropFilter: blurGlass,
+      boxShadow: shadowSm,
+
+      "&:hover": {
+        background: "rgba(255, 255, 255, 0.15)",
+        transform: "translateY(-1px)",
+        boxShadow: shadowMd,
+      },
+    },
+  },
+
+  badgeGlassPrimary: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0.25rem 0.625rem",
+      borderRadius: radiusSm,
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      lineHeight: "1",
+      background: "rgba(59, 130, 246, 0.2)",
+      color: "#fff",
+      border: `1px solid rgba(59, 130, 246, 0.3)`,
+      backdropFilter: blurGlass,
+      boxShadow: shadowSm,
+
+      "&:hover": {
+        background: "rgba(59, 130, 246, 0.3)",
+        transform: "translateY(-1px)",
+      },
+    },
+  },
+
+  badgePulse: {
+    base: {
+      animation: "pulse 2s ease-in-out infinite",
+      boxShadow: `0 0 0 0 rgba(59, 130, 246, 0.7)`,
+    },
+  },
+
+  badgeBounce: {
+    base: {
+      animation: "float 3s ease-in-out infinite",
+    },
+  },
+
+  badgeInteractive: {
+    base: {
+      cursor: "pointer",
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+
+      "&:active": {
+        transform: "translateY(0) scale(0.95)",
+      },
+
+      "&:focus": {
+        outline: "none",
+        boxShadow: `0 0 0 2px ${primary}20, ${shadowSm}`,
+      },
+    },
+  },
+
+  badgeRemovable: {
+    base: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "0.25rem",
+      padding: "0.25rem 0.5rem 0.25rem 0.625rem",
+      cursor: "pointer",
+
+      "& .badge-remove": {
+        background: "none",
+        border: "none",
+        color: "inherit",
+        opacity: "0.6",
+        cursor: "pointer",
+        padding: "0.125rem",
+        borderRadius: "50%",
+        transition: standardTransition,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: "0.875rem",
+        height: "0.875rem",
+
+        "&:hover": {
+          opacity: "1",
+          background: "rgba(0, 0, 0, 0.1)",
+        },
+      },
+
+      "&:hover .badge-remove": {
+        opacity: "0.8",
+      },
+    },
+  },
+
+  badgeGroup: {
+    base: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "0.375rem",
+      alignItems: "center",
+    },
+  },
+
+  badgeGroupStacked: {
+    base: {
+      display: "flex",
+      flexDirection: "column",
+      gap: "0.25rem",
+      alignItems: "flex-start",
+    },
+  },
+}

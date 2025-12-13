@@ -1,0 +1,74 @@
+# 1. Remove all compiled files
+rm -rf dist
+
+# 2. Clear any cache
+rm -f .garur-cache.json
+
+# 3. Rebuild from scratch
+yarn build
+
+# 4. Test
+yarn dev
+
+
+# For users to install your CSS framework
+npm install garur-css
+# or
+yarn add garur-css
+
+
+
+
+# Scan and generate CSS
+npx garur scan
+# or
+npx garur build
+
+# Watch mode for development
+npx garur watch
+
+# Production build with optimizations
+npx garur build --minify
+
+
+# Development build
+yarn build
+
+# Run your CLI directly
+yarn dev
+
+# Test the production CLI
+yarn jit
+
+# Run tests
+yarn test
+
+# Development server
+yarn devV
+
+
+
+TSCONFIG
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["jest"]
+  },
+  "exclude": [
+  "node_modules",
+  "dist",
+  "tools",
+  "intr",
+  "tests",
+  "vite.config.ts",
+  "vite-plugin.ts"
+]
+}
