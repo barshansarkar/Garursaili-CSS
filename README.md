@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Garur-Saili-CSS
 
 A fast, modern, atomic CSS engine built with love in India.
@@ -70,3 +71,7 @@ Garur is young, but powerful — and it will evolve openly.
 Barshan Sarkar
 wsst bengal
 India 🇮🇳
+=======
+# Garursaili-CSS
+GARURCSS ultra fast atomic CSS engine with SSC (super sonic cyclone ) Compilation . Made in India 
+>>>>>>> af742ba9020b99bda6e26bddbdf018dc95b8e01f
