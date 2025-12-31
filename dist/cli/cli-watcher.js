@@ -6,102 +6,241 @@
  *  License: MIT
  * ---------------------------------------------------------------------
  *
- *  This CLI powers the Garur-CSS ecosystem. It handles:
- *    • SSC ( SUPER SONIC CYCLONE ) compilation of utility classes
- *    • File scanning across HTML / JS / TS / JSX / TSX
- *    • Cache management and orphan-class detection
- *    • Config file creation (garur.config.js)
- *    • Plugin boilerplate generation
- *    • Watch mode for real-time builds ,, (coming soon)
- *
- *  Technologies:
- *    - TypeScript
- *    - Rollup bundling (CJS-compatible output)
- *    - Node.js (CLI execution via shebang)
- *
- *  Notes for contributors:
- *    • Keep the CLI ESM/CJS compatible.
- *    • Avoid dynamic require unless wrapped safely.
- *    • Keep output messages clean, fast, and developer-friendly.
- *
- *  Made in India.
+ *  Watch mode that actually works
+ *  (Fixed properly this time)
  * ---------------------------------------------------------------------
  */
-// src/cli-watch.ts
-// it's 6:03 am and this is the last file before i finally pass out
-// why am i even writing a watch mode. who asked for this. i just want sleep
 import chokidar from "chokidar";
 import path from "path";
-import { runJITIncremental } from "../core/ssc";
-// i hate async main functions but here we are
-async function main() {
-    const args = process.argv.slice(2);
-    const patterns = args.length ? args : ["**/*.{html,ts,js,jsx,tsx}"];
-    console.log("Starting Garur-CSS watch for patterns:", patterns.join(", "));
-    console.log("if this crashes again im deleting the entire repo");
-    // Initial full build — pls work just once
+import fs from "fs";
+import pc from "picocolors";
+// Use dynamic import to avoid path issues
+async function loadGarur() {
     try {
-        // yes i'm dynamically importing because static import broke for some reason at 4am
-        const jit = await import("../core/ssc");
-        if (jit.runJIT) {
-            await jit.runJIT(patterns);
-            console.log("Initial build done. miracle achieved.");
+        // Try different paths for the JIT engine
+        const paths = [
+            "../core/ssc.js",
+            "./core/ssc.js",
+            path.join(__dirname, "../core/ssc.js"),
+            path.join(process.cwd(), "core/ssc.js")
+        ];
+        for (const modulePath of paths) {
+            try {
+                const module = await import(modulePath);
+                if (module.runJIT && module.runJITIncremental) {
+                    return module;
+                }
+            }
+            catch (e) {
+                // Continue to next path
+            }
+        }
+        throw new Error("Garur JIT engine not found. Tried: " + paths.join(", "));
+    }
+    catch (error) {
+        console.error(pc.red("Failed to load Garur engine:"), error);
+        process.exit(1);
+    }
+}
+async function main() {
+    console.log(pc.cyan("🚀 Starting Garur-CSS Watch Mode"));
+    console.log(pc.gray("Watching for file changes...\n"));
+    // Load Garur engine
+    const { runJIT, runJITIncremental } = await loadGarur();
+    const args = process.argv.slice(2);
+    // FIXED: Don't include ignore patterns in watch list
+    const watchPatterns = args.length ? args : [
+        "**/*.{html,htm,vue,svelte,astro,jsx,tsx,js,ts}",
+        "src/**/*",
+        "app/**/*",
+        "pages/**/*",
+        "components/**/*"
+    ];
+    // Separate build patterns (what to actually scan)
+    const buildPatterns = args.length ? args : [
+        "**/*.{html,htm,vue,svelte,astro,jsx,tsx,js,ts}",
+        "src/**/*",
+        "app/**/*",
+        "pages/**/*",
+        "components/**/*"
+    ];
+    console.log(pc.dim(`Watching: ${watchPatterns.join(", ")}`));
+    // Ensure output directory exists
+    const outputDir = path.resolve(process.cwd(), "dist");
+    if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+        console.log(pc.green(`Created output directory: ${outputDir}`));
+    }
+    // Initial build with better error handling
+    try {
+        console.log(pc.cyan("⚡ Running initial build..."));
+        // Convert patterns to absolute paths
+        const absolutePatterns = buildPatterns.map(p => path.isAbsolute(p) ? p : path.resolve(process.cwd(), p));
+        const stats = await runJIT(absolutePatterns);
+        console.log(pc.green(`✅ Initial build complete!`));
+        console.log(pc.dim(`   Files: ${stats.filesScanned} | Classes: ${stats.uniqueClasses} | CSS: ${(stats.cssBytes / 1024).toFixed(1)}KB`));
+        // Verify CSS was generated
+        const cssPath = path.join(outputDir, "garur.css");
+        if (fs.existsSync(cssPath)) {
+            const css = fs.readFileSync(cssPath, "utf-8");
+            console.log(pc.green(`📄 CSS generated: ${css.length} bytes, ${css.split('\n').length} lines`));
         }
         else {
-            console.log("runJIT not found lol ok guess we're skipping initial build");
+            console.warn(pc.yellow("⚠️  No CSS file generated! Check your patterns."));
         }
     }
-    catch (e) {
-        console.warn("Initial build failed as expected:", e);
-        console.warn("moving on because nothing matters anymore");
+    catch (error) {
+        console.error(pc.red("❌ Initial build failed:"), error.message);
+        console.log(pc.gray("Continuing to watch anyway..."));
     }
-    const watcher = chokidar.watch(patterns, {
-        ignored: /node_modules|dist|\.git/,
-        ignoreInitial: true, // thank god
+    // Watch configuration - FIXED: Remove ignore patterns from watch list
+    const watcher = chokidar.watch(watchPatterns, {
+        ignored: [
+            "**/node_modules/**",
+            "**/dist/**",
+            "**/.git/**",
+            "**/.next/**",
+            "**/.nuxt/**",
+            "**/build/**",
+            "**/out/**",
+            "**/*.map",
+            "**/.DS_Store",
+            "**/Thumbs.db"
+        ],
+        ignoreInitial: true,
         persistent: true,
         cwd: process.cwd(),
+        awaitWriteFinish: {
+            stabilityThreshold: 150,
+            pollInterval: 50
+        }
     });
     let pending = new Set();
+    let deleted = new Set();
     let timer = null;
+    let isBuilding = false;
+    let buildCount = 0;
+    async function flushChanges() {
+        if (isBuilding) {
+            if (process.env.DEBUG)
+                console.log(pc.yellow("Build already in progress, queuing..."));
+            return;
+        }
+        const changedFiles = Array.from(pending);
+        const deletedFiles = Array.from(deleted);
+        if (changedFiles.length === 0 && deletedFiles.length === 0) {
+            return;
+        }
+        isBuilding = true;
+        pending.clear();
+        deleted.clear();
+        console.log(pc.cyan(`\n🔄 Rebuilding (${++buildCount})...`));
+        if (process.env.DEBUG) {
+            console.log(pc.dim(`Changed: ${changedFiles.map(f => path.relative(process.cwd(), f)).join(", ")}`));
+            if (deletedFiles.length > 0) {
+                console.log(pc.dim(`Deleted: ${deletedFiles.map(f => path.relative(process.cwd(), f)).join(", ")}`));
+            }
+        }
+        try {
+            const startTime = Date.now();
+            // FIXED: runJITIncremental might expect different parameters
+            // Check your function signature
+            if (runJITIncremental.length === 1) {
+                await runJITIncremental(changedFiles);
+            }
+            else {
+                await runJITIncremental(changedFiles, deletedFiles);
+            }
+            const elapsed = Date.now() - startTime;
+            // Verify CSS was updated
+            const cssPath = path.join(outputDir, "garur.css");
+            if (fs.existsSync(cssPath)) {
+                const stats = fs.statSync(cssPath);
+                console.log(pc.green(`✅ Rebuilt in ${elapsed}ms`));
+                console.log(pc.dim(`   CSS updated at: ${stats.mtime.toLocaleTimeString()}`));
+                if (process.env.DEBUG) {
+                    const css = fs.readFileSync(cssPath, "utf-8");
+                    console.log(pc.dim(`   Size: ${css.length} bytes, Lines: ${css.split('\n').length}`));
+                }
+            }
+            else {
+                console.warn(pc.yellow("⚠️  No CSS file after rebuild!"));
+            }
+        }
+        catch (error) {
+            console.error(pc.red("❌ Rebuild failed:"), error.message);
+            // Fallback to full rebuild on error
+            console.log(pc.yellow("Attempting full rebuild..."));
+            try {
+                const absolutePatterns = buildPatterns.map(p => path.isAbsolute(p) ? p : path.resolve(process.cwd(), p));
+                await runJIT(absolutePatterns);
+                console.log(pc.green("✅ Full rebuild succeeded"));
+            }
+            catch (fallbackError) {
+                console.error(pc.red("❌ Full rebuild also failed:"), fallbackError.message);
+            }
+        }
+        finally {
+            isBuilding = false;
+            // Process any changes that came in while building
+            if (pending.size > 0 || deleted.size > 0) {
+                console.log(pc.cyan("Processing queued changes..."));
+                setTimeout(flushChanges, 100);
+            }
+        }
+    }
     function scheduleFlush() {
         if (timer)
             clearTimeout(timer);
-        timer = setTimeout(async () => {
-            const files = Array.from(pending);
-            pending.clear();
-            if (files.length === 0)
-                return;
-            try {
-                await runJITIncremental(files);
-                console.log(`[Garur] Rebuilt ${files.length} file${files.length > 1 ? 's' : ''} @ ${new Date().toLocaleTimeString()}`);
-            }
-            catch (e) {
-                console.error("[Garur] Incremental build exploded again:", e);
-                console.error("why do i even try");
-            }
-        }, 120); // 120ms debounce because 100 wasn't enough and 200 felt slow
+        timer = setTimeout(flushChanges, 200); // 200ms debounce
     }
-    watcher.on("add", p => {
-        pending.add(path.resolve(p));
+    // Event handlers
+    watcher
+        .on("add", (filePath) => {
+        const fullPath = path.resolve(filePath);
+        if (process.env.DEBUG)
+            console.log(pc.gray(`+ ${path.relative(process.cwd(), fullPath)}`));
+        pending.add(fullPath);
+        deleted.delete(fullPath);
         scheduleFlush();
-    });
-    watcher.on("change", p => {
-        pending.add(path.resolve(p));
+    })
+        .on("change", (filePath) => {
+        const fullPath = path.resolve(filePath);
+        if (process.env.DEBUG)
+            console.log(pc.gray(`~ ${path.relative(process.cwd(), fullPath)}`));
+        pending.add(fullPath);
         scheduleFlush();
-    });
-    watcher.on("unlink", p => {
-        pending.add(path.resolve(p)); // yes even deleted files trigger rebuild
+    })
+        .on("unlink", (filePath) => {
+        const fullPath = path.resolve(filePath);
+        if (process.env.DEBUG)
+            console.log(pc.gray(`- ${path.relative(process.cwd(), fullPath)}`));
+        deleted.add(fullPath);
+        pending.delete(fullPath);
         scheduleFlush();
+    })
+        .on("error", (error) => {
+        console.error(pc.red("Watcher error:"), error);
     });
-    // goodbye cruel world
+    // Graceful shutdown
     process.on("SIGINT", () => {
-        console.log("\nshutting down... finally");
-        watcher.close().then(() => process.exit(0));
+        console.log(pc.yellow("\n\n🛑 Stopping watcher..."));
+        watcher.close().then(() => {
+            console.log(pc.green("✅ Watch mode stopped"));
+            process.exit(0);
+        }).catch((err) => {
+            console.error(pc.red("❌ Error stopping watcher:"), err);
+            process.exit(1);
+        });
     });
-    console.log("Watcher running. send coffee.");
+    // Keep alive
+    console.log(pc.green("\n✅ Watch mode active"));
+    console.log(pc.gray("Press Ctrl+C to stop\n"));
+    // Keep process alive
+    await new Promise(() => { });
 }
-// run it or crash trying
-main().catch(err => {
-    console.error("watch mode died a horrible death:", err);
+// Run with better error handling
+main().catch((error) => {
+    console.error(pc.red("Fatal error in watch mode:"), error);
     process.exit(1);
 });

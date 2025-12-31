@@ -1,11 +1,10 @@
 {
   "name": "garursaili-css",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "main": "dist/cli.cjs",
   "type": "module",
   "module": "dist/garur.esm.js",
-
   "bin": {
     "garur": "./dist/cli.cjs"
   },
@@ -14,17 +13,17 @@
     "saili:watch": "node ./dist/cli-watcher.js --watch",
     "dev": "vite",
     "start": "npm run saili:build && npm run dev",
-"build": "tsc && rollup -c --bundleConfigAsCjs && chmod +x dist/cli.cjs",
-"test": "node dist/cli.js --help",
+    "build": "tsc && rollup -c --bundleConfigAsCjs && chmod +x dist/cli.cjs",
+    "test": "node dist/cli.js --help",
     "bundle": "rollup -c",
     "jit": "node dist/cli.js",
     "generate-shortmap": "ts-node generate-shortmap.ts",
     "docs:gen": "ts-node src/scripts/generate-docs.ts",
     "purge": "ts-node src/scripts/purge.ts",
-
     "test:ci": "ts-node src/tests/run-ci-tests.ts",
     "test:jest": "jest --runInBand",
-    "devV": "vite"
+    "devV": "vite",
+    "preview": "vite preview"
   },
   "keywords": [
     "garur-css",
@@ -32,7 +31,6 @@
     "garursaili",
     "barshan",
     "framework",
-
     "css",
     "atomic",
     "jit",

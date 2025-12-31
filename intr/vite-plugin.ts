@@ -2,7 +2,7 @@ import { Plugin, HmrContext } from "vite";
 import path from "path";
 import fs from "fs";
 
-import { runJIT, runJITIncremental } from "../src/jit";
+import { runJIT, runJITIncremental } from "../src/core/ssc";
 
 export default function garurVite(): Plugin {
   const ROOT = process.cwd();

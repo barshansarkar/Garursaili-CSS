@@ -36,7 +36,7 @@
 import { allComponents } from "../components";
 import { parse } from "./parser";
 import { handle } from "./handler";
-import { config } from "../config/garur.config"; // pretty sure we dont even use this anymore?
+import config from "../config/garur.config";
 import { escapeClassName as escape } from "./builder";
 import { splitPrefixesFromRaw, isBreakpoint, applyVariantSelectors, wrapWithBreakpoints } from "../utils/variants";
 

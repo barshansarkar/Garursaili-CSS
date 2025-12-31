@@ -12,7 +12,8 @@
  *    • Cache management and orphan-class detection
  *    • Config file creation (garur.config.js)
  *    • Plugin boilerplate generation
- *    • Watch mode for real-time builds ,, (coming soon)
+ *    • Vite integration for modern web development
+ *    • Watch mode for real-time builds
  *
  *  Technologies:
  *    - TypeScript
