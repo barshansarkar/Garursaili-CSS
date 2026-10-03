@@ -22,7 +22,16 @@ import {
   minifyCss,
 } from "./native";
 
-const VERSION = "1.0.2";
+const VERSION = (() => {
+  try {
+    const pkgPath = path.resolve(process.cwd(), "package.json");
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+      return pkg.version || "1.1.0";
+    }
+  } catch { /* ignore */ }
+  return "1.1.0";
+})();
 const banner = pc.cyan(`  🦅 GarurSaili-CSS v${VERSION}`);
 const tagline = pc.gray("  Ultra-fast atomic CSS engine\n");
 

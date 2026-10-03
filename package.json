@@ -1,6 +1,6 @@
 {
   "name": "garursaili-css",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "The most beautiful atomic CSS framework. Rust-powered, ultra-fast JIT.",
   "license": "MIT",
   "author": "Barshan Sarkar",
@@ -36,11 +36,11 @@
     "picocolors": "^1.1.1"
   },
   "optionalDependencies": {
-    "@garursaili/linux-x64-gnu": "1.0.2",
-    "@garursaili/linux-x64-musl": "1.0.2",
-    "@garursaili/darwin-x64": "1.0.2",
-    "@garursaili/darwin-arm64": "1.0.2",
-    "@garursaili/win32-x64-msvc": "1.0.2"
+    "@garursaili/linux-x64-gnu": "1.1.0",
+    "@garursaili/linux-x64-musl": "1.1.0",
+    "@garursaili/darwin-x64": "1.1.0",
+    "@garursaili/darwin-arm64": "1.1.0",
+    "@garursaili/win32-x64-msvc": "1.1.0"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.4",
@@ -50,8 +50,17 @@
     "typescript": "^5.9.3"
   },
   "keywords": [
-    "css", "atomic", "tailwind", "rust", "napi", "jit",
-    "utility-first", "garur", "saili", "fast", "css-in-js"
+    "css",
+    "atomic",
+    "tailwind",
+    "rust",
+    "napi",
+    "jit",
+    "utility-first",
+    "garur",
+    "saili",
+    "fast",
+    "css-in-js"
   ],
   "repository": {
     "type": "git",
