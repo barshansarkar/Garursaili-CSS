@@ -1,0 +1,17 @@
+node_modules/
+dist/
+target/
+rust/target/
+*.node
+.garur-cache*
+*.log
+.DS_Store
+tmp/
+temp/
+*.bak*
+.vscode/*
+.idea/
+coverage/
+run.txt
+command.txt
+*.txt

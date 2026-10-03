@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GarurSaili-CSS — Ultra-fast Atomic CSS</title>
+  <link rel="stylesheet" href="dist/garur.css">
+  <style>
+    /* Only custom bits that don't have utilities */
+    @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-20px) } }
+    @keyframes shine { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
+    html { scroll-behavior: smooth }
+    .float { animation: float 6s ease-in-out infinite }
+    .shine {
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.4), transparent);
+      background-size: 200% 100%;
+      animation: shine 2s infinite;
+    }
+  </style>
+</head>
+<body class="text-gray-900 bg-white antialiased">
+
+  <!-- ═══ STICKY NAV ═══ -->
+  <nav class="fixed bg-white/80 border-b border-gray-200 backdrop-blur-md left-0 right-0 top-0 z-50">
+    <div class="flex items-center justify-between h-16 max-w-6xl mx-auto px-6">
+      <a href="#" class="flex items-center gap-2 font-bold text-xl">
+        <span class="flex items-center justify-center h-8 w-8 text-lg text-white bg-gradient-to-br rounded-lg from-blue-500 to-purple-600">
+          🦅
+        </span>
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+          GarurSaili
+        </span>
+      </a>
+      <div class="hidden items-center gap-8 md:flex">
+        <a href="#features" class="font-medium text-gray-600 text-sm hover:text-blue-600 transition">Features</a>
+        <a href="#showcase" class="font-medium text-gray-600 text-sm hover:text-blue-600 transition">Showcase</a>
+        <a href="#pricing" class="font-medium text-gray-600 text-sm hover:text-blue-600 transition">Pricing</a>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="theme-toggle" class="p-2 rounded-lg hover:bg-gray-100 cursor-pointer transition" aria-label="Toggle theme">
+          <span class="block h-5 w-5 leading-none text-lg">🌙</span>
+        </button>
+        <a href="#" class="hidden items-center font-semibold text-sm text-white bg-gray-900 rounded-lg hover:bg-gray-800 sm:inline-flex px-4 py-2 transition">
+          Get Started
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══ HERO ═══ -->
+  <section class="relative overflow-hidden pb-24 pt-32">
+    <!-- Background blobs -->
+    <div class="absolute -z-10 inset-0 overflow-hidden">
+      <div class="absolute h-96 w-96 bg-blue-400/20 rounded-full -left-32 blur-3xl top-20"></div>
+      <div class="absolute h-96 w-96 bg-purple-400/20 rounded-full -right-32 blur-3xl top-40"></div>
+      <div class="absolute h-64 w-[800px] bg-pink-400/10 rounded-full -translate-x-1/2 blur-3xl bottom-0 left-1/2"></div>
+    </div>
+
+    <div class="max-w-4xl text-center mx-auto px-6">
+      <span class="inline-flex items-center gap-2 font-semibold text-blue-700 text-xs bg-blue-50 rounded-full mb-6 px-3 py-1 ring-1 ring-blue-200">
+        <span class="h-2 w-2 bg-blue-500 rounded-full animate-pulse"></span>
+        Powered by Rust 🦀 — 5ms builds
+      </span>
+
+      <h1 class="font-extrabold leading-tight text-5xl text-shadow-lg tracking-tight md:text-7xl mb-6">
+        Atomic CSS
+        <span class="block text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-pink-600 via-purple-600">
+          at lightspeed
+        </span>
+      </h1>
+
+      <p class="max-w-2xl leading-relaxed text-gray-600 text-lg md:text-xl mb-10 mx-auto">
+        The fastest atomic CSS engine ever built. Tailwind-compatible utilities,
+        Rust-native JIT compiler, zero-config setup.
+      </p>
+
+      <div class="flex flex-wrap items-center justify-center gap-4 mb-12">
+        <a href="#showcase" class="inline-flex items-center gap-2 font-semibold text-white bg-gray-900 rounded-xl shadow-lg hover:bg-gray-800 hover:shadow-xl group px-6 py-3 transition">
+          See it in action
+          <span class="group-hover:translate-x-1 transition-transform">→</span>
+        </a>
+        <a href="#features" class="font-semibold text-gray-900 bg-white rounded-xl hover:ring-gray-300 px-6 py-3 ring-1 ring-gray-200 transition">
+          Explore features
+        </a>
+      </div>
+
+      <!-- Stats -->
+      <div class="grid grid-cols-3 gap-4 max-w-lg mx-auto">
+        <div class="p-4 bg-white rounded-xl ring-1 ring-gray-200">
+          <div class="font-bold text-2xl text-blue-600 md:text-3xl">5ms</div>
+          <div class="text-gray-500 text-xs mt-1">Build time</div>
+        </div>
+        <div class="p-4 bg-white rounded-xl ring-1 ring-gray-200">
+          <div class="font-bold text-2xl text-purple-600 md:text-3xl">1500+</div>
+          <div class="text-gray-500 text-xs mt-1">Utilities</div>
+        </div>
+        <div class="p-4 bg-white rounded-xl ring-1 ring-gray-200">
+          <div class="font-bold text-2xl text-pink-600 md:text-3xl">0 KB</div>
+          <div class="text-gray-500 text-xs mt-1">Runtime</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ FEATURES ═══ -->
+  <section id="features" class="bg-gray-50 py-24">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <span class="inline-block font-semibold text-purple-700 text-xs bg-purple-100 rounded-full mb-4 px-3 py-1">
+          FEATURES
+        </span>
+        <h2 class="font-bold text-4xl md:text-5xl mb-4">Everything you need</h2>
+        <p class="max-w-2xl text-gray-600 text-lg mx-auto">
+          A complete utility system with variants, arbitrary values, gradients, and more.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 md:grid-cols-2">
+        <!-- Card 1 -->
+        <div class="p-6 bg-white rounded-2xl hover:ring-blue-300 hover:shadow-xl group ring-1 ring-gray-200 transition-all">
+          <div class="flex items-center justify-center h-12 w-12 text-2xl text-white bg-gradient-to-br rounded-xl from-blue-500 group-hover:scale-110 mb-4 to-blue-600 transition-transform">
+            ⚡
+          </div>
+          <h3 class="font-bold text-xl mb-2">Blazing Fast</h3>
+          <p class="leading-relaxed text-gray-600 text-sm">
+            Native Rust core compiles thousands of classes in under 10ms. No waiting, ever.
+          </p>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="p-6 bg-white rounded-2xl hover:ring-purple-300 hover:shadow-xl group ring-1 ring-gray-200 transition-all">
+          <div class="flex items-center justify-center h-12 w-12 text-2xl text-white bg-gradient-to-br rounded-xl from-purple-500 group-hover:scale-110 mb-4 to-purple-600 transition-transform">
+            🎨
+          </div>
+          <h3 class="font-bold text-xl mb-2">Full Variants</h3>
+          <p class="leading-relaxed text-gray-600 text-sm">
+            Hover, focus, group-hover, peer-checked, container queries, dark mode, and 50+ more.
+          </p>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="p-6 bg-white rounded-2xl hover:ring-pink-300 hover:shadow-xl group ring-1 ring-gray-200 transition-all">
+          <div class="flex items-center justify-center h-12 w-12 text-2xl text-white bg-gradient-to-br rounded-xl from-pink-500 group-hover:scale-110 mb-4 to-pink-600 transition-transform">
+            🎯
+          </div>
+          <h3 class="font-bold text-xl mb-2">Arbitrary Values</h3>
+          <p class="leading-relaxed text-gray-600 text-sm">
+            Write <code class="text-xs bg-gray-100 rounded px-1 py-0.5">w-[137px]</code> or
+            <code class="text-xs bg-gray-100 rounded px-1 py-0.5">bg-[#abc123]</code> — anything works.
+          </p>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="p-6 bg-white rounded-2xl hover:ring-green-300 hover:shadow-xl group ring-1 ring-gray-200 transition-all">
+          <div class="flex items-center justify-center h-12 w-12 text-2xl text-white bg-gradient-to-br rounded-xl from-green-500 group-hover:scale-110 mb-4 to-green-600 transition-transform">
+            📦
+          </div>
+          <h3 class="font-bold text-xl mb-2">Tiny Output</h3>
+          <p class="leading-relaxed text-gray-600 text-sm">
+            JIT compilation means zero bloat. Only classes you actually use.
+          </p>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="p-6 bg-white rounded-2xl hover:ring-orange-300 hover:shadow-xl group ring-1 ring-gray-200 transition-all">
+          <div class="flex items-center justify-center h-12 w-12 text-2xl text-white bg-gradient-to-br rounded-xl from-orange-500 group-hover:scale-110 mb-4 to-orange-600 transition-transform">
+            🔧
+          </div>
+          <h3 class="font-bold text-xl mb-2">Zero Config</h3>
+          <p class="leading-relaxed text-gray-600 text-sm">
+            Works out of the box. Optional config for breakpoints, palette, and more.
+          </p>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="p-6 bg-white rounded-2xl hover:ring-cyan-300 hover:shadow-xl group ring-1 ring-gray-200 transition-all">
+          <div class="flex items-center justify-center h-12 w-12 text-2xl text-white bg-gradient-to-br rounded-xl from-cyan-500 group-hover:scale-110 mb-4 to-cyan-600 transition-transform">
+            🌗
+          </div>
+          <h3 class="font-bold text-xl mb-2">Dark Mode</h3>
+          <p class="leading-relaxed text-gray-600 text-sm">
+            Class-based or media-based dark mode. Full variant support.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ SHOWCASE — Component demos ═══ -->
+  <section id="showcase" class="py-24">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <span class="inline-block font-semibold text-blue-700 text-xs bg-blue-100 rounded-full mb-4 px-3 py-1">
+          SHOWCASE
+        </span>
+        <h2 class="font-bold text-4xl md:text-5xl mb-4">Beautiful by default</h2>
+        <p class="max-w-2xl text-gray-600 text-lg mx-auto">
+          See what you can build with GarurSaili utilities.
+        </p>
+      </div>
+
+      <!-- Container query demo -->
+      <div class="p-8 bg-gradient-to-br rounded-3xl @container from-gray-50 mb-8 ring-1 ring-gray-200 to-gray-100">
+        <div class="grid grid-cols-1 gap-4 @md:grid-cols-4 @sm:grid-cols-2">
+          <div class="p-6 bg-white rounded-2xl shadow-sm">
+            <div class="text-3xl mb-2">🚀</div>
+            <div class="font-bold">Fast</div>
+            <div class="text-gray-500 text-sm">5ms builds</div>
+          </div>
+          <div class="p-6 bg-white rounded-2xl shadow-sm">
+            <div class="text-3xl mb-2">🦀</div>
+            <div class="font-bold">Rust</div>
+            <div class="text-gray-500 text-sm">Native core</div>
+          </div>
+          <div class="p-6 bg-white rounded-2xl shadow-sm">
+            <div class="text-3xl mb-2">⚡</div>
+            <div class="font-bold">JIT</div>
+            <div class="text-gray-500 text-sm">On-demand</div>
+          </div>
+          <div class="p-6 bg-white rounded-2xl shadow-sm">
+            <div class="text-3xl mb-2">🎨</div>
+            <div class="font-bold">Atomic</div>
+            <div class="text-gray-500 text-sm">Utility-first</div>
+          </div>
+        </div>
+        <p class="text-center text-gray-400 text-xs mt-4">
+          ↑ This grid uses <code class="bg-white rounded px-1 py-0.5">@container</code> queries — resize to see it adapt
+        </p>
+      </div>
+
+      <!-- Interactive demo cards -->
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-3 mb-8">
+        <!-- Gradient card -->
+        <div class="relative p-8 text-white bg-gradient-to-br rounded-3xl from-indigo-500 group overflow-hidden to-pink-500 via-purple-500">
+          <div class="absolute bg-gradient-to-tr -translate-x-full duration-1000 from-transparent group-hover:translate-x-full inset-0 to-transparent transition-transform via-white/10"></div>
+          <div class="relative">
+            <div class="text-5xl group-hover:scale-110 mb-4 transition-transform">🌈</div>
+            <h3 class="font-bold text-2xl mb-2">Gradients</h3>
+            <p class="text-sm text-white/80">
+              Full gradient system with from, via, to, and multiple directions.
+            </p>
+          </div>
+        </div>
+
+        <!-- Glass card -->
+        <div class="relative p-8 rounded-3xl overflow-hidden">
+          <div class="absolute bg-gradient-to-br from-cyan-400 inset-0 to-indigo-500 via-blue-500"></div>
+          <div class="absolute p-6 text-white bg-white/20 rounded-2xl backdrop-blur-xl inset-4 ring-1 ring-white/30">
+            <div class="text-5xl mb-4">💎</div>
+            <h3 class="font-bold text-2xl mb-2">Glassmorphism</h3>
+            <p class="text-sm text-white/80">
+              Backdrop blur, transparency, and rings.
+            </p>
+          </div>
+        </div>
+
+        <!-- Peer card -->
+        <div class="p-8 bg-white rounded-3xl ring-1 ring-gray-200">
+          <div class="text-5xl mb-4">✅</div>
+          <h3 class="font-bold text-2xl mb-2">Interactivity</h3>
+          <p class="text-gray-600 text-sm mb-4">
+            Pure CSS interactions with peer and group variants.
+          </p>
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" class="h-5 w-5 rounded accent-purple-600 peer">
+            <span class="peer-checked:font-bold peer-checked:text-purple-600 transition">
+              Click me
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Code block -->
+      <div class="p-6 text-sm bg-gray-900 rounded-2xl md:p-8 overflow-hidden">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="h-3 w-3 bg-red-500 rounded-full"></span>
+          <span class="h-3 w-3 bg-yellow-500 rounded-full"></span>
+          <span class="h-3 w-3 bg-green-500 rounded-full"></span>
+          <span class="text-gray-400 text-xs ml-4">example.html</span>
+        </div>
+        <pre class="text-gray-300 overflow-x-auto"><code>&lt;div class="<span class="text-blue-400">grid grid-cols-1 md:grid-cols-3 gap-6</span>"&gt;
+  &lt;div class="<span class="text-purple-400">bg-gradient-to-r from-blue-500 to-purple-600</span>
+              <span class="text-pink-400">rounded-2xl p-6 shadow-xl hover:shadow-2xl</span>
+              <span class="text-green-400">transition-all group</span>"&gt;
+    &lt;span class="<span class="text-yellow-400">group-hover:scale-110 transition-transform</span>"&gt;
+      🦅
+    &lt;/span&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ PRICING ═══ -->
+  <section id="pricing" class="bg-gradient-to-b from-white py-24 to-gray-50">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <span class="inline-block font-semibold text-green-700 text-xs bg-green-100 rounded-full mb-4 px-3 py-1">
+          PRICING
+        </span>
+        <h2 class="font-bold text-4xl md:text-5xl mb-4">Simple, transparent</h2>
+        <p class="text-gray-600 text-lg">Always free. Forever open source.</p>
+      </div>
+
+      <div class="grid grid-cols-1 gap-6 max-w-5xl md:grid-cols-3 mx-auto">
+        <!-- Free -->
+        <div class="p-8 bg-white rounded-3xl hover:ring-gray-300 ring-1 ring-gray-200 transition">
+          <div class="font-semibold text-gray-500 text-sm tracking-wide mb-2 uppercase">Starter</div>
+          <div class="flex items-baseline gap-2 mb-6">
+            <span class="font-extrabold text-5xl">$0</span>
+            <span class="text-gray-500">/forever</span>
+          </div>
+          <ul class="space-y-3 text-sm mb-8">
+            <li class="flex items-start gap-3"><span class="font-bold text-green-500">✓</span><span>All utilities</span></li>
+            <li class="flex items-start gap-3"><span class="font-bold text-green-500">✓</span><span>All variants</span></li>
+            <li class="flex items-start gap-3"><span class="font-bold text-green-500">✓</span><span>MIT license</span></li>
+            <li class="flex items-start gap-3"><span class="font-bold text-green-500">✓</span><span>Community support</span></li>
+          </ul>
+          <a href="#" class="block w-full font-semibold text-center text-gray-900 bg-gray-100 rounded-xl hover:bg-gray-200 px-4 py-3 transition">
+            Get started
+          </a>
+        </div>
+
+        <!-- Pro (highlighted) -->
+        <div class="relative p-8 text-white bg-gray-900 rounded-3xl shadow-2xl md:scale-105 ring-2 ring-purple-500">
+          <div class="absolute font-bold text-xs bg-gradient-to-r rounded-full -top-4 -translate-x-1/2 from-purple-500 left-1/2 px-4 py-1 to-pink-500 whitespace-nowrap">
+            MOST POPULAR
+          </div>
+          <div class="font-semibold text-purple-300 text-sm tracking-wide mb-2 uppercase">Pro</div>
+          <div class="flex items-baseline gap-2 mb-6">
+            <span class="font-extrabold text-5xl">$0</span>
+            <span class="text-gray-400">/forever</span>
+          </div>
+          <ul class="space-y-3 text-sm mb-8">
+            <li class="flex items-start gap-3"><span class="font-bold text-purple-400">✓</span><span>Everything in Starter</span></li>
+            <li class="flex items-start gap-3"><span class="font-bold text-purple-400">✓</span><span>Priority updates</span></li>
+            <li class="flex items-start gap-3"><span class="font-bold text-purple-400">✓</span><span>Rust engine</span></li>
+            <li class="flex items-start gap-3"><span class="font-bold text-purple-400">✓</span><span>5ms builds</span></li>
+          </ul>
+          <a href="#" class="block w-full font-semibold text-center text-white bg-gradient-to-r rounded-xl shadow-lg hover:opacity-90 from-purple-500 px-4 py-3 to-pink-500 transition">
+            Install now
+          </a>
+        </div>
+
+        <!-- Enterprise -->
+        <div class="p-8 bg-white rounded-3xl hover:ring-gray-300 ring-1 ring-gray-200 transition">
+          <div class="font-semibold text-gray-500 text-sm tracking-wide mb-2 uppercase">Enterprise</div>
+          <div class="flex items-baseline gap-2 mb-6">
+            <span class="font-extrabold text-5xl">$0</span>
+            <span class="text-gray-500">/forever</span>
+          </div>
+          <ul class="space-y-3 text-sm mb-8">
+            <li class="flex items-start gap-3"><span class="font-bold text-green-500">✓</span><span>Everything in Pro</span></li>
+            <li class="flex items-start gap-3"><span class="font-bold text-green-500">✓</span><span>Commercial use</span></li>
+            <li class="flex items-start gap-3"><span class="font-bold text-green-500">✓</span><span>Custom plugins</span></li>
+            <li class="flex items-start gap-3"><span class="font-bold text-green-500">✓</span><span>Dedicated support</span></li>
+          </ul>
+          <a href="#" class="block w-full font-semibold text-center text-gray-900 bg-gray-100 rounded-xl hover:bg-gray-200 px-4 py-3 transition">
+            Contact us
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CTA ═══ -->
+  <section class="px-6 py-24">
+    <div class="relative p-12 max-w-4xl rounded-3xl md:p-16 mx-auto overflow-hidden">
+      <div class="absolute bg-gradient-to-br from-blue-600 inset-0 to-pink-600 via-purple-600"></div>
+      <div class="absolute h-64 w-64 bg-white/10 rounded-full -right-24 -top-24 blur-2xl"></div>
+      <div class="absolute h-64 w-64 bg-white/10 rounded-full -bottom-24 -left-24 blur-2xl"></div>
+
+      <div class="relative text-center text-white">
+        <div class="text-6xl float mb-6">🦅</div>
+        <h2 class="font-extrabold text-3xl md:text-5xl mb-4">Ready to fly?</h2>
+        <p class="max-w-xl text-lg text-white/90 mb-8 mx-auto">
+          Install GarurSaili-CSS in seconds and start building faster than ever.
+        </p>
+        <div class="inline-flex items-center gap-3 font-mono text-sm bg-white/10 rounded-xl md:text-base backdrop-blur-md px-6 py-3 ring-1 ring-white/30">
+          <span class="text-white/60">$</span>
+          <span>npx garur init && npx garur watch</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ FOOTER ═══ -->
+  <footer class="bg-white border-gray-200 border-t px-6 py-12">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex flex-col items-center justify-between gap-6 md:flex-row">
+        <div class="flex items-center gap-2 font-bold">
+          <span class="flex items-center justify-center h-6 w-6 text-white text-xs bg-gradient-to-br rounded-md from-blue-500 to-purple-600">
+            🦅
+          </span>
+          GarurSaili-CSS
+        </div>
+        <div class="flex flex-wrap gap-6 text-gray-600 text-sm">
+          <a href="#" class="hover:text-blue-600 transition">Docs</a>
+          <a href="#" class="hover:text-blue-600 transition">GitHub</a>
+          <a href="#" class="hover:text-blue-600 transition">npm</a>
+          <a href="#" class="hover:text-blue-600 transition">MIT License</a>
+        </div>
+        <div class="text-gray-500 text-sm">
+          Made in 🇮🇳 by Barshan Sarkar
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Dark mode toggle -->
+  <script>
+    const btn = document.getElementById('theme-toggle');
+    const icon = btn.querySelector('span');
+    btn.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      icon.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+    });
+  </script>
+
+</body>
+</html>
+
+<!-- ADVANCED TEST -->
+<div class="p-8 border-gray-300 border-t-2 mt-8">
+  <h2 class="font-bold text-3xl mb-4">Advanced Test</h2>
+
+  <div data-state="open" class="p-4 data-[state=open]:bg-blue-500 mb-2">Data attribute variant</div>
+  <button aria-expanded="true" class="aria-[expanded=true]:text-red-500 mb-2">Aria variant</button>
+
+  <div class="grid-cols-3 gap-2 mb-2 supports-[display:grid]:grid">
+    <div class="p-2 bg-gray-100">1</div>
+    <div class="p-2 bg-gray-100">2</div>
+    <div class="p-2 bg-gray-100">3</div>
+  </div>
+
+  <div class="p-4 max-md:bg-yellow-100 min-[900px]:text-4xl mb-2">Resize me</div>
+
+  <div class="mb-2 opacity-100 starting:opacity-0 transition">Starting style</div>
+
+  <div class="bg-gray-100 mb-2 pointer-coarse:p-4 pointer-fine:p-8">Pointer</div>
+
+  <div class="mb-2 perspective-dramatic">
+    <div class="p-6 text-white bg-blue-500 rotate-x-45 transform-3d">3D</div>
+  </div>
+
+  <div class="p-4 text-white bg-gray-900 mb-2 scheme-dark">Scheme</div>
+
+  <input class="p-2 border field-sizing-content mb-2" value="Auto-grow">
+
+  <div class="p-4 bg-blue-100 mb-2 pb-safe pt-safe">Safe area</div>
+
+  <div class="h-20 border mb-2 overflow-y-scroll scrollbar-thin">
+    <div>Scrollable content here</div>
+  </div>
+
+  <div class="p-4 bg-red-100 mb-2 view-transition-hero">View transition</div>
+
+  <div class="h-32 bg-gradient-to-b from-blue-500 mask-t-from-transparent to-purple-500"></div>
+</div>
+<div class="bg-red-500 p-8">test</div>

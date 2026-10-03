@@ -1,0 +1,39 @@
+{
+  "name": "garurcss-vscode",
+  "displayName": "Garur-CSS Intellisense",
+  "publisher": "your-name",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "description": "Lightweight VS Code extension providing completions and hovers for Garur-CSS utilities.",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:html",
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascriptreact"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "garur.showDocs",
+        "title": "Garur: Show Utilities"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc -p ./",
+    "watch": "tsc -w -p ./"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.0",
+    "@types/node": "^18.0.0",
+    "vscode": "^1.1.37"
+  },
+  "dependencies": {}
+}

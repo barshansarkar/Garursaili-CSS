@@ -1,0 +1,62 @@
+{
+  "name": "garursaili-css",
+  "version": "1.0.2",
+  "description": "The most beautiful atomic CSS framework. Rust-powered, ultra-fast JIT.",
+  "license": "MIT",
+  "author": "Barshan Sarkar",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "garur": "dist/cli.cjs"
+  },
+  "files": [
+    "dist/**/*",
+    "index.cjs",
+    "index.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "rust": "cd rust && napi build --platform --release && cp -v garur_core.*.node ../ || true",
+    "rust:all": "cd rust && napi build --platform --release --target x86_64-unknown-linux-gnu",
+    "build": "npm run build:ts",
+    "build:ts": "tsc --project tsconfig.json --outDir dist-tmp && node scripts/bundle.mjs",
+    "prepublishOnly": "npm run build",
+    "cli": "tsx src/cli.ts",
+    "test": "npm run cli -- --help",
+    "version": "napi version"
+  },
+  "dependencies": {
+    "minimist": "^1.2.8",
+    "picocolors": "^1.1.1"
+  },
+  "optionalDependencies": {
+    "@garursaili/linux-x64-gnu": "1.0.2",
+    "@garursaili/linux-x64-musl": "1.0.2",
+    "@garursaili/darwin-x64": "1.0.2",
+    "@garursaili/darwin-arm64": "1.0.2",
+    "@garursaili/win32-x64-msvc": "1.0.2"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.4",
+    "@types/minimist": "^1.2.5",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "keywords": [
+    "css", "atomic", "tailwind", "rust", "napi", "jit",
+    "utility-first", "garur", "saili", "fast", "css-in-js"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/barshansarkar/Garursaili-CSS.git"
+  },
+  "bugs": "https://github.com/barshansarkar/Garursaili-CSS/issues",
+  "homepage": "https://github.com/barshansarkar/Garursaili-CSS#readme"
+}
