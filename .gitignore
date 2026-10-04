@@ -1,17 +1,39 @@
+# ── Node ──
 node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# ── Build output ──
 dist/
-target/
-rust/target/
-*.node
-.garur-cache*
+build/
+out/
+*.tgz
 *.log
-.DS_Store
-tmp/
-temp/
-*.bak*
-.vscode/*
+
+# ── Native binaries (rebuilt per platform) ──
+*.node
+garur_core.*.node
+
+# ── Garur cache ──
+.garur-cache.bin
+.garur-cache.json
+.garur-cache-stats.json
+
+# ── Rust ──
+rust/target/
+**/*.rs.bk
+
+# ── Editor ──
+.vscode/
 .idea/
-coverage/
-run.txt
-command.txt
-*.txt
+*.swp
+.DS_Store
+
+# ── Scratch ──
+a.html
+scratch.*
+tmp.*
+
+# ── Env ──
+.env
+.env.local

@@ -224,9 +224,31 @@ export function scanFiles(files: string[]): { path: string; classes: string[] }[
   return [];
 }
 
+// ─── Brace expansion (JS-side workaround) ───
+
+function expandBraces(pattern: string): string[] {
+  const match = pattern.match(/\{([^{}]+)\}/);
+  if (!match || match.index === undefined) return [pattern];
+  const prefix = pattern.slice(0, match.index);
+  const suffix = pattern.slice(match.index + match[0].length);
+  const out: string[] = [];
+  for (const opt of match[1].split(',')) {
+    out.push(...expandBraces(`${prefix}${opt.trim()}${suffix}`));
+  }
+  return out;
+}
+
 export function findFiles(cwd: string, inc: string[], ign: string[]): string[] {
+  // Expand braces on JS side (guaranteed to work)
+  const expandedInc = inc.flatMap(expandBraces);
+  const expandedIgn = ign.flatMap(expandBraces);
+
+  if (process.env.GARUR_DEBUG) {
+    console.log("[garur] findFiles patterns:", expandedInc);
+  }
+
   if (native) {
-    try { return native.findFiles(cwd, inc, ign); } catch { /* fall */ }
+    try { return native.findFiles(cwd, expandedInc, expandedIgn); } catch { /* fall */ }
   }
   return [];
 }
@@ -373,6 +395,8 @@ export function runSscWithStats(files: string[], configJson: string): SscStats {
     buildEntries: stats.build_entries,
     buildHitRate: stats.build_hit_rate,
   };
+
+  
 }
 
 // ─── JS Fallbacks ───
@@ -409,7 +433,25 @@ function extractJS(content: string): string[] {
   }
   return Array.from(out);
 }
+// ───────────────────────────────────────────────
+// Persistent cache (cross-process)
+// ───────────────────────────────────────────────
 
+export function exportCache(): string {
+  try {
+    return (native as any).exportCache?.() ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function importCache(data: string): boolean {
+  try {
+    return (native as any).importCache?.(data) ?? false;
+  } catch {
+    return false;
+  }
+}
 export default {
   hasNative, nativeVersion, initConfig, initHandler,
   parse, parseBatch, lex, clearParseCache,

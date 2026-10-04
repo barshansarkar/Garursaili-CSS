@@ -20,6 +20,8 @@ import {
   runSscWithStats,
   findFiles,
   minifyCss,
+  exportCache,
+  importCache,
 } from "./native";
 
 const VERSION = (() => {
@@ -47,7 +49,10 @@ const DEFAULT_INCLUDES = ["**/*.{html,htm,js,jsx,ts,tsx,vue,svelte,astro,php}"];
 const DEFAULT_IGNORES = [
   "node_modules/**", "dist/**", ".git/**",
   "build/**", "coverage/**", "**/*.map", "**/*.min.*",
-  "rust/target/**", "**/*.node", "test-*.html",
+  "rust/target/**", "**/*.node",
+  // NOTE: `test-*.html` was too aggressive — matched `test-theme/*.html`.
+  // Only ignore loose test files at project root:
+  "test-*.test.html",
 ];
 
 // Format should only touch markup — never source .ts/.js
@@ -187,6 +192,9 @@ function resetPersistentStats(): void {
 // Build
 // ═══════════════════════════════════════════════════════════════
 
+const CACHE_FILE = (cwd: string) =>
+  path.resolve(cwd, ".garur-cache.bin");
+
 function buildOnce(
   cwd: string,
   includes: string[],
@@ -200,8 +208,26 @@ function buildOnce(
     return null;
   }
 
+  // ── Load persistent cache from previous run
+  const cacheFile = CACHE_FILE(cwd);
+  if (fs.existsSync(cacheFile)) {
+    try {
+      const cached = fs.readFileSync(cacheFile, "utf-8");
+      if (cached) importCache(cached);
+    } catch { /* ignore corrupt cache */ }
+  }
+
   const start = Date.now();
+  if (process.env.GARUR_DEBUG) {
+    console.log(pc.dim("  [debug] Includes: " + includes.join(", ")));
+    console.log(pc.dim("  [debug] CWD: " + cwd));
+  }
   const files = findFiles(cwd, includes, ignores);
+  if (process.env.GARUR_DEBUG) {
+    console.log(pc.dim("  [debug] Found " + files.length + " files:"));
+    for (const f of files) console.log(pc.dim("    " + f));
+  }
+
   if (files.length === 0) return null;
 
   const cfgJson = JSON.stringify({
@@ -228,6 +254,12 @@ function buildOnce(
     cacheHits: stats.cacheHits,
     cacheMisses: stats.cacheMisses,
   };
+
+  // ── Save persistent cache for next run
+  try {
+    const exported = exportCache();
+    if (exported) fs.writeFileSync(cacheFile, exported, "utf-8");
+  } catch { /* ignore */ }
 
   accumulateStats(result);
   return result;
@@ -313,6 +345,8 @@ function cmdClean(): void {
   const caches = [
     path.resolve(process.cwd(), "dist/.garur-cache.json"),
     path.resolve(process.cwd(), ".garur-cache.json"),
+    path.resolve(process.cwd(), ".garur-cache.bin"),          // ← ADD
+    path.resolve(process.cwd(), ".garur-cache-stats.json"),   // ← ADD
     path.resolve(process.cwd(), "dist/garur.css"),
     path.resolve(process.cwd(), "dist/garur.min.css"),
   ];
@@ -633,7 +667,13 @@ function cmdCacheStats(json: boolean = false): void {
   console.log(pc.dim(`    First build:      ${stats.firstBuild || "—"}`));
   console.log(pc.dim(`    Last build:       ${stats.lastBuild || "—"}`));
   console.log("");
-  console.log(pc.dim(`  Stats file: ${path.relative(process.cwd(), STATS_FILE())}\n`));
+  console.log(pc.dim(`  Stats file: ${path.relative(process.cwd(), STATS_FILE())}`));
+  console.log("");
+  console.log(pc.yellow("  ⚠ Note: This is cross-process cumulative."));
+  console.log(pc.dim("    Each cold `garur build` starts fresh — 0% is normal."));
+  console.log(pc.dim("    Persistent cache is now enabled via ") + pc.cyan(".garur-cache.bin"));
+  console.log(pc.dim("    Run ") + pc.cyan("garur benchmark") + pc.dim(" for in-process measurement."));
+  console.log("");
 }
 
 function cmdCacheStatsReset(): void {

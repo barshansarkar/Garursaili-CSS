@@ -1,0 +1,11 @@
+cd ~/Desktop/Garursaili-CSS
+
+# Rust build
+cd rust
+napi build --platform --release
+cp -v garur_core.linux-x64-gnu.node ../
+cd ..
+
+# Test
+npx tsx src/cli.ts native
+npx tsx src/cli.ts

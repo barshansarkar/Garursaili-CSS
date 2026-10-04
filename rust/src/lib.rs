@@ -1,6 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════
-// GarurSaili-CSS — Native Core (lib.rs)
-// Thin napi layer. All heavy work in engine.rs / ssc.rs
+// GarurSaili-CSS — Native Core
 // ═══════════════════════════════════════════════════════════════════
 
 use memmap2::Mmap;
@@ -9,9 +8,17 @@ use napi_derive::napi;
 use std::fs::File;
 
 mod advanced;
+mod browsers;
+mod css_input;
 mod engine;
+mod palette_default;
+mod plugin;
+mod preflight;
+mod sanitize;
 mod ssc;
 mod utilities;
+mod utilities_extended; 
+mod utilities_v4; 
 mod variants;
 
 // ───────────────────────────────────────────────
@@ -32,6 +39,13 @@ pub struct ParsedToken {
 pub struct ScanResult {
     pub path: String,
     pub classes: Vec<String>,
+}
+
+#[napi(object)]
+pub struct SscOpts {
+    pub preflight: Option<bool>,
+    pub minify: Option<bool>,
+    pub vendor_prefix: Option<bool>,
 }
 
 // ───────────────────────────────────────────────
@@ -56,9 +70,9 @@ pub fn init_handler(palette_json: String) -> Result<()> {
 pub fn parse(token: String) -> Result<ParsedToken> {
     engine::parse(&token)
         .map(|t| ParsedToken {
-            raw: t.raw,
-            key: t.key,
-            value: t.value,
+            raw: t.raw.clone(),
+            key: t.key.clone(),
+            value: t.value.clone(),
             negative: t.negative,
             important: t.important,
         })
@@ -68,29 +82,22 @@ pub fn parse(token: String) -> Result<ParsedToken> {
 #[napi]
 pub fn parse_batch(tokens: Vec<String>) -> Vec<Option<ParsedToken>> {
     use rayon::prelude::*;
-    tokens
-        .par_iter()
-        .map(|t| {
-            engine::parse(t).ok().map(|p| ParsedToken {
-                raw: p.raw,
-                key: p.key,
-                value: p.value,
-                negative: p.negative,
-                important: p.important,
-            })
+    tokens.par_iter().map(|t| {
+        engine::parse(t).ok().map(|p| ParsedToken {
+            raw: p.raw.clone(),
+            key: p.key.clone(),
+            value: p.value.clone(),
+            negative: p.negative,
+            important: p.important,
         })
-        .collect()
+    }).collect()
 }
 
 #[napi]
-pub fn lex(class_string: String) -> Vec<String> {
-    engine::lex(&class_string)
-}
+pub fn lex(class_string: String) -> Vec<String> { engine::lex(&class_string) }
 
 #[napi]
-pub fn clear_parse_cache() {
-    engine::clear_parse_cache();
-}
+pub fn clear_parse_cache() { engine::clear_parse_cache(); }
 
 // ───────────────────────────────────────────────
 // Builder
@@ -108,26 +115,20 @@ pub fn build_batch(classes: Vec<String>) -> Vec<Option<String>> {
 }
 
 #[napi]
-pub fn clear_cache() {
-    engine::clear_cache();
-}
+pub fn clear_cache() { engine::clear_cache(); }
 
 // ───────────────────────────────────────────────
 // Extractor / Scanner
 // ───────────────────────────────────────────────
 
 #[napi]
-pub fn extract_classes(content: String) -> Vec<String> {
-    engine::extract(&content)
-}
+pub fn extract_classes(content: String) -> Vec<String> { engine::extract(&content) }
 
 #[napi]
 pub fn extract_from_file(path: String) -> Option<Vec<String>> {
     let file = File::open(&path).ok()?;
     let meta = file.metadata().ok()?;
-    if meta.len() > 5 * 1024 * 1024 {
-        return None;
-    }
+    if meta.len() > 5 * 1024 * 1024 { return None; }
     let mmap = unsafe { Mmap::map(&file).ok()? };
     let content = std::str::from_utf8(&mmap).ok()?;
     Some(engine::extract(content))
@@ -136,22 +137,14 @@ pub fn extract_from_file(path: String) -> Option<Vec<String>> {
 #[napi]
 pub fn scan_files(files: Vec<String>) -> Vec<ScanResult> {
     use rayon::prelude::*;
-    files
-        .into_par_iter()
-        .filter_map(|p| {
-            let file = File::open(&p).ok()?;
-            let meta = file.metadata().ok()?;
-            if meta.len() > 5 * 1024 * 1024 {
-                return None;
-            }
-            let mmap = unsafe { Mmap::map(&file).ok()? };
-            let content = std::str::from_utf8(&mmap).ok()?;
-            Some(ScanResult {
-                path: p,
-                classes: engine::extract(content),
-            })
-        })
-        .collect()
+    files.into_par_iter().filter_map(|p| {
+        let file = File::open(&p).ok()?;
+        let meta = file.metadata().ok()?;
+        if meta.len() > 5 * 1024 * 1024 { return None; }
+        let mmap = unsafe { Mmap::map(&file).ok()? };
+        let content = std::str::from_utf8(&mmap).ok()?;
+        Some(ScanResult { path: p, classes: engine::extract(content) })
+    }).collect()
 }
 
 #[napi]
@@ -168,13 +161,45 @@ pub fn run_ssc(files: Vec<String>, config_json: String) -> String {
     ssc::run(&files, &config_json)
 }
 
+#[napi]
+pub fn run_ssc_with_options(
+    files: Vec<String>,
+    config_json: String,
+    opts: Option<SscOpts>,
+) -> String {
+    let o = opts.unwrap_or(SscOpts { preflight: None, minify: None, vendor_prefix: None });
+    let ssc_opts = ssc::SscOptions {
+        preflight: o.preflight.unwrap_or(true),
+        minify: o.minify.unwrap_or(false),
+        vendor_prefix: o.vendor_prefix.unwrap_or(true),
+    };
+    ssc::run_with_options(&files, &config_json, ssc_opts)
+}
+
 // ───────────────────────────────────────────────
-// Minify
+// Preflight access
 // ───────────────────────────────────────────────
 
 #[napi]
-pub fn minify_css(css: String) -> String {
-    engine::minify(&css)
+pub fn get_preflight() -> String { preflight::preflight().to_string() }
+
+#[napi]
+pub fn get_layer_decl() -> String { preflight::layer().to_string() }
+
+#[napi]
+pub fn get_property_decls() -> String { preflight::properties().to_string() }
+
+// ───────────────────────────────────────────────
+// Minify / Finalize
+// ───────────────────────────────────────────────
+
+#[napi]
+pub fn minify_css(css: String) -> String { engine::minify(&css) }
+
+#[napi]
+pub fn finalize_css(css: String, minify: Option<bool>) -> String {
+    let targets = engine::current_targets();
+    engine::finalize(&css, minify.unwrap_or(false), &targets)
 }
 
 // ───────────────────────────────────────────────
@@ -213,36 +238,110 @@ pub fn cache_save(path: String, json: String) -> Result<()> {
     Ok(())
 }
 
-// ───────────────────────────────────────────────
-// ★ Cache statistics (NEW)
-// ───────────────────────────────────────────────
-
 #[napi]
 pub fn cache_stats() -> String {
-    serde_json::to_string(&engine::cache_stats())
-        .unwrap_or_else(|_| "{}".into())
+    serde_json::to_string(&engine::cache_stats()).unwrap_or_else(|_| "{}".into())
 }
 
 #[napi]
-pub fn reset_cache_stats() {
-    engine::reset_cache_stats();
-}
+pub fn reset_cache_stats() { engine::reset_cache_stats(); }
 
 // ───────────────────────────────────────────────
-// Version
+// Version / Warmup
 // ───────────────────────────────────────────────
 
 #[napi]
-pub fn version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
+pub fn version() -> String { env!("CARGO_PKG_VERSION").to_string() }
+
+#[napi]
+pub fn warmup_classes(classes: Vec<String>) { engine::warmup(&classes); }
+
+#[napi]
+pub fn has_utility(cls: String) -> bool { engine::build(&cls, false).is_some() }
+
+// ───────────────────────────────────────────────
+// @apply / @theme
+// ───────────────────────────────────────────────
+
+#[napi]
+pub fn process_css_input(css: String) -> Result<String> {
+    css_input::process_css(&css)
+        .map(|(out, _tokens)| out)
+        .map_err(Error::from_reason)
 }
 
 #[napi]
-pub fn warmup_classes(classes: Vec<String>) {
-    engine::warmup(&classes);
+pub fn expand_apply(css: String) -> Result<String> {
+    css_input::expand_apply(&css).map_err(Error::from_reason)
 }
 
 #[napi]
-pub fn has_utility(cls: String) -> bool {
-    engine::build(&cls, false).is_some()
+pub fn extract_theme(css: String) -> String {
+    css_input::extract_theme(&css)
+}
+
+#[napi]
+pub fn get_theme_tokens(css: String) -> String {
+    let (_stripped, tokens) = css_input::parse_theme(&css);
+    serde_json::to_string(&serde_json::json!({
+        "colors":  tokens.colors,
+        "spacing": tokens.spacing,
+        "radius":  tokens.radius,
+        "font":    tokens.font,
+        "raw":     tokens.raw,
+    }))
+    .unwrap_or_else(|_| "{}".into())
+}
+
+// ───────────────────────────────────────────────
+// Plugin registry
+// ───────────────────────────────────────────────
+
+#[napi]
+pub fn register_plugin_utility(name: String, decls: String) {
+    plugin::register_utility(name, decls);
+}
+
+#[napi]
+pub fn register_plugin_variant(name: String, template: String) {
+    plugin::register_variant(name, template);
+}
+
+#[napi]
+pub fn list_plugin_utilities() -> String {
+    serde_json::to_string(&plugin::snapshot_utilities()).unwrap_or_else(|_| "[]".into())
+}
+
+#[napi]
+pub fn list_plugin_variants() -> String {
+    serde_json::to_string(&plugin::snapshot_variants()).unwrap_or_else(|_| "[]".into())
+}
+
+#[napi]
+pub fn clear_plugins() {
+    plugin::clear_all();
+}
+
+#[napi]
+pub fn export_cache() -> String {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let snap = engine::export_cache_snapshot();
+    match bincode::serialize(&snap) {
+        Ok(bytes) => STANDARD.encode(&bytes),
+        Err(_) => String::new(),
+    }
+}
+
+#[napi]
+pub fn import_cache(data: String) -> bool {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    if data.is_empty() { return false; }
+    let bytes = match STANDARD.decode(&data) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    match bincode::deserialize::<engine::CacheSnapshot>(&bytes) {
+        Ok(snap) => engine::import_cache_snapshot(snap),
+        Err(_) => false,
+    }
 }

@@ -4,8 +4,6 @@
 
 use rustc_hash::FxHashMap;
 
-// ─── Scales ───
-
 pub const SPACING: &[(&str, &str)] = &[
     ("px", "1px"), ("0", "0"), ("0.5", "0.125rem"), ("1", "0.25rem"),
     ("1.5", "0.375rem"), ("2", "0.5rem"), ("2.5", "0.625rem"),
@@ -95,14 +93,12 @@ fn hex_to_rgba(hex: &str, alpha: f64) -> Option<String> {
 
 pub fn apply_alpha(color: &str, opacity: u32) -> String {
     let alpha = opacity as f64 / 100.0;
-    if color.starts_with('#') {
-        if let Some(rgba) = hex_to_rgba(color, alpha) {
+    if let Some(h) = color.strip_prefix('#') {
+        if let Some(rgba) = hex_to_rgba(h, alpha) {
             return rgba;
         }
-    } else if color.starts_with("rgb(") {
-        if let Some(inner) = color.strip_prefix("rgb(").and_then(|s| s.strip_suffix(")")) {
-            return format!("rgba({}, {})", inner, alpha);
-        }
+    } else if let Some(inner) = color.strip_prefix("rgb(").and_then(|s| s.strip_suffix(")")) {
+        return format!("rgba({}, {})", inner, alpha);
     }
     color.to_string()
 }
@@ -110,7 +106,10 @@ pub fn apply_alpha(color: &str, opacity: u32) -> String {
 // ─── Main entry ───
 
 pub fn generate(palette: &FxHashMap<String, String>) -> FxHashMap<String, String> {
-    let mut m = FxHashMap::default();
+    // Pre-size generously: base ~8k, extended ~4k, v4 ~1k, palette×~55 variants
+    let est = 16_384 + palette.len().saturating_mul(55);
+    let mut m = FxHashMap::with_capacity_and_hasher(est, Default::default());
+
     gen_layout(&mut m);
     gen_position(&mut m);
     gen_spacing(&mut m);
@@ -127,21 +126,23 @@ pub fn generate(palette: &FxHashMap<String, String>) -> FxHashMap<String, String
     gen_filter(&mut m);
     gen_animation(&mut m);
     gen_interaction(&mut m);
-    gen_scroll(&mut m);
     gen_svg(&mut m);
     gen_accessibility(&mut m);
     gen_table(&mut m);
     gen_misc(&mut m);
     crate::advanced::generate(&mut m);
-    // ─── NEW ───
+    gen_container_smart(&mut m);
     gen_container_queries(&mut m);
     gen_text_shadow(&mut m);
     gen_backdrop_full(&mut m);
     gen_writing_mode(&mut m);
     gen_logical_props(&mut m);
     gen_more_colors(&mut m);
+    crate::utilities_extended::generate_extended(&mut m);
+    crate::utilities_v4::generate_v4(&mut m, palette);
     m
 }
+
 // ─── Layout ───
 
 fn gen_layout(m: &mut FxHashMap<String, String>) {
@@ -163,14 +164,16 @@ fn gen_layout(m: &mut FxHashMap<String, String>) {
     m.insert("box-border".into(), "box-sizing:border-box".into());
     m.insert("box-content".into(), "box-sizing:content-box".into());
 
-    // Float & Clear
     for (k, v) in [("right", "right"), ("left", "left"), ("none", "none")] {
         m.insert(format!("float-{}", k), format!("float:{}", v));
         m.insert(format!("clear-{}", k), format!("clear:{}", v));
     }
     m.insert("clear-both".into(), "clear:both".into());
+    m.insert("float-start".into(), "float:inline-start".into());
+    m.insert("float-end".into(), "float:inline-end".into());
+    m.insert("clear-start".into(), "clear:inline-start".into());
+    m.insert("clear-end".into(), "clear:inline-end".into());
 
-    // Overflow
     for (k, v) in [
         ("auto", "auto"), ("hidden", "hidden"), ("clip", "clip"),
         ("visible", "visible"), ("scroll", "scroll"),
@@ -180,19 +183,16 @@ fn gen_layout(m: &mut FxHashMap<String, String>) {
         m.insert(format!("overflow-y-{}", k), format!("overflow-y:{}", v));
     }
 
-    // Overscroll
     for (k, v) in [("auto", "auto"), ("contain", "contain"), ("none", "none")] {
         m.insert(format!("overscroll-{}", k), format!("overscroll-behavior:{}", v));
         m.insert(format!("overscroll-x-{}", k), format!("overscroll-behavior-x:{}", v));
         m.insert(format!("overscroll-y-{}", k), format!("overscroll-behavior-y:{}", v));
     }
 
-    // Visibility
     m.insert("visible".into(), "visibility:visible".into());
     m.insert("invisible".into(), "visibility:hidden".into());
     m.insert("collapse".into(), "visibility:collapse".into());
 
-    // Object fit / position
     for (k, v) in [
         ("contain", "contain"), ("cover", "cover"), ("fill", "fill"),
         ("none", "none"), ("scale-down", "scale-down"),
@@ -208,11 +208,9 @@ fn gen_layout(m: &mut FxHashMap<String, String>) {
         m.insert(format!("object-{}", k), format!("object-position:{}", v));
     }
 
-    // isolation
     m.insert("isolate".into(), "isolation:isolate".into());
     m.insert("isolation-auto".into(), "isolation:auto".into());
 
-    // aspect-ratio
     for (k, v) in [
         ("auto", "auto"), ("square", "1 / 1"), ("video", "16 / 9"),
         ("1/1", "1 / 1"), ("2/3", "2 / 3"), ("3/2", "3 / 2"),
@@ -222,11 +220,8 @@ fn gen_layout(m: &mut FxHashMap<String, String>) {
         m.insert(format!("aspect-{}", k), format!("aspect-ratio:{}", v));
     }
 
-    // Container queries
-    m.insert("container".into(), "width:100%;margin-left:auto;margin-right:auto;padding-left:1rem;padding-right:1rem;max-width:1280px".into());
     m.insert("@container".into(), "container-type:inline-size".into());
 
-    // Break (columns, page, etc.)
     for (k, v) in [
         ("auto", "auto"), ("avoid", "avoid"), ("all", "all"),
         ("avoid-page", "avoid-page"), ("page", "page"),
@@ -236,17 +231,10 @@ fn gen_layout(m: &mut FxHashMap<String, String>) {
         m.insert(format!("break-inside-{}", k), format!("break-inside:{}", v));
     }
 
-    // Box-decoration
     for (k, v) in [("clone", "clone"), ("slice", "slice")] {
         m.insert(format!("box-decoration-{}", k), format!("box-decoration-break:{}", v));
     }
-
-    // Box-sizing aliases
-    m.insert("box-border".into(), "box-sizing:border-box".into());
-    m.insert("box-content".into(), "box-sizing:content-box".into());
 }
-
-// ─── Position ───
 
 fn gen_position(m: &mut FxHashMap<String, String>) {
     for (k, v) in [
@@ -256,7 +244,6 @@ fn gen_position(m: &mut FxHashMap<String, String>) {
         m.insert(k.into(), format!("position:{}", v));
     }
 
-    // Inset
     for &(k, v) in SPACING {
         m.insert(format!("inset-{}", k), format!("inset:{}", v));
         m.insert(format!("inset-x-{}", k), format!("left:{};right:{}", v, v));
@@ -279,39 +266,32 @@ fn gen_position(m: &mut FxHashMap<String, String>) {
     m.insert("start-auto".into(), "inset-inline-start:auto".into());
     m.insert("end-auto".into(), "inset-inline-end:auto".into());
 
-    for &(k, v) in SPACING {
-        m.insert(format!("inset-1/2"), "inset:50%".into());
-        m.insert(format!("inset-1/3"), "inset:33.333333%".into());
-        m.insert(format!("inset-2/3"), "inset:66.666667%".into());
-        m.insert(format!("inset-1/4"), "inset:25%".into());
-        m.insert(format!("inset-3/4"), "inset:75%".into());
-        m.insert(format!("inset-full"), "inset:100%".into());
-        m.insert(format!("top-1/2"), "top:50%".into());
-        m.insert(format!("top-1/3"), "top:33.333333%".into());
-        m.insert(format!("top-2/3"), "top:66.666667%".into());
-        m.insert(format!("top-1/4"), "top:25%".into());
-        m.insert(format!("top-3/4"), "top:75%".into());
-        m.insert(format!("top-full"), "top:100%".into());
-        m.insert(format!("left-1/2"), "left:50%".into());
-        m.insert(format!("left-full"), "left:100%".into());
-        m.insert(format!("right-1/2"), "right:50%".into());
-        m.insert(format!("right-full"), "right:100%".into());
-        m.insert(format!("bottom-1/2"), "bottom:50%".into());
-        m.insert(format!("bottom-full"), "bottom:100%".into());
-        let _ = (k, v);
-    }
+    m.insert("inset-1/2".into(), "inset:50%".into());
+    m.insert("inset-1/3".into(), "inset:33.333333%".into());
+    m.insert("inset-2/3".into(), "inset:66.666667%".into());
+    m.insert("inset-1/4".into(), "inset:25%".into());
+    m.insert("inset-3/4".into(), "inset:75%".into());
+    m.insert("inset-full".into(), "inset:100%".into());
+    m.insert("top-1/2".into(), "top:50%".into());
+    m.insert("top-1/3".into(), "top:33.333333%".into());
+    m.insert("top-2/3".into(), "top:66.666667%".into());
+    m.insert("top-1/4".into(), "top:25%".into());
+    m.insert("top-3/4".into(), "top:75%".into());
+    m.insert("top-full".into(), "top:100%".into());
+    m.insert("left-1/2".into(), "left:50%".into());
+    m.insert("left-full".into(), "left:100%".into());
+    m.insert("right-1/2".into(), "right:50%".into());
+    m.insert("right-full".into(), "right:100%".into());
+    m.insert("bottom-1/2".into(), "bottom:50%".into());
+    m.insert("bottom-full".into(), "bottom:100%".into());
 
-    // Z-index
     for &(k, v) in Z_INDEX {
         m.insert(format!("z-{}", k), format!("z-index:{}", v));
     }
 }
 
-// ─── Spacing ───
-
 fn gen_spacing(m: &mut FxHashMap<String, String>) {
     for &(k, v) in SPACING {
-        // Padding
         m.insert(format!("p-{}", k), format!("padding:{}", v));
         m.insert(format!("px-{}", k), format!("padding-left:{};padding-right:{}", v, v));
         m.insert(format!("py-{}", k), format!("padding-top:{};padding-bottom:{}", v, v));
@@ -322,7 +302,6 @@ fn gen_spacing(m: &mut FxHashMap<String, String>) {
         m.insert(format!("pb-{}", k), format!("padding-bottom:{}", v));
         m.insert(format!("pl-{}", k), format!("padding-left:{}", v));
 
-        // Margin
         m.insert(format!("m-{}", k), format!("margin:{}", v));
         m.insert(format!("mx-{}", k), format!("margin-left:{};margin-right:{}", v, v));
         m.insert(format!("my-{}", k), format!("margin-top:{};margin-bottom:{}", v, v));
@@ -333,31 +312,19 @@ fn gen_spacing(m: &mut FxHashMap<String, String>) {
         m.insert(format!("mb-{}", k), format!("margin-bottom:{}", v));
         m.insert(format!("ml-{}", k), format!("margin-left:{}", v));
 
-        // Gap
         m.insert(format!("gap-{}", k), format!("gap:{}", v));
         m.insert(format!("gap-x-{}", k), format!("column-gap:{}", v));
         m.insert(format!("gap-y-{}", k), format!("row-gap:{}", v));
 
-        // Space between — child selector
         m.insert(format!("space-x-{}", k), format!(
-            "& > :not([hidden]) ~ :not([hidden]) {{ --garur-space-x-reverse:0; margin-left:calc({v} * calc(1 - var(--garur-space-x-reverse))); margin-right:calc({v} * var(--garur-space-x-reverse)); }}",
-            v = v
-        ));
+            "& > :not([hidden]) ~ :not([hidden]) {{ --garur-space-x-reverse:0; margin-left:calc({v} * calc(1 - var(--garur-space-x-reverse))); margin-right:calc({v} * var(--garur-space-x-reverse)); }}", v = v));
         m.insert(format!("space-y-{}", k), format!(
-            "& > :not([hidden]) ~ :not([hidden]) {{ --garur-space-y-reverse:0; margin-top:calc({v} * calc(1 - var(--garur-space-y-reverse))); margin-bottom:calc({v} * var(--garur-space-y-reverse)); }}",
-            v = v
-        ));
-        // Explicit negative variants (Tailwind compatible)
+            "& > :not([hidden]) ~ :not([hidden]) {{ --garur-space-y-reverse:0; margin-top:calc({v} * calc(1 - var(--garur-space-y-reverse))); margin-bottom:calc({v} * var(--garur-space-y-reverse)); }}", v = v));
         m.insert(format!("-space-x-{}", k), format!(
-            "& > :not([hidden]) ~ :not([hidden]) {{ --garur-space-x-reverse:0; margin-left:calc(-{v} * calc(1 - var(--garur-space-x-reverse))); margin-right:calc(-{v} * var(--garur-space-x-reverse)); }}",
-            v = v
-        ));
+            "& > :not([hidden]) ~ :not([hidden]) {{ --garur-space-x-reverse:0; margin-left:calc(-{v} * calc(1 - var(--garur-space-x-reverse))); margin-right:calc(-{v} * var(--garur-space-x-reverse)); }}", v = v));
         m.insert(format!("-space-y-{}", k), format!(
-            "& > :not([hidden]) ~ :not([hidden]) {{ --garur-space-y-reverse:0; margin-top:calc(-{v} * calc(1 - var(--garur-space-y-reverse))); margin-bottom:calc(-{v} * var(--garur-space-y-reverse)); }}",
-            v = v
-        ));
+            "& > :not([hidden]) ~ :not([hidden]) {{ --garur-space-y-reverse:0; margin-top:calc(-{v} * calc(1 - var(--garur-space-y-reverse))); margin-bottom:calc(-{v} * var(--garur-space-y-reverse)); }}", v = v));
 
-        // Scroll margin/padding
         m.insert(format!("scroll-m-{}", k), format!("scroll-margin:{}", v));
         m.insert(format!("scroll-mx-{}", k), format!("scroll-margin-left:{};scroll-margin-right:{}", v, v));
         m.insert(format!("scroll-my-{}", k), format!("scroll-margin-top:{};scroll-margin-bottom:{}", v, v));
@@ -384,12 +351,9 @@ fn gen_spacing(m: &mut FxHashMap<String, String>) {
     m.insert("mb-auto".into(), "margin-bottom:auto".into());
     m.insert("ml-auto".into(), "margin-left:auto".into());
 
-    // Space-x reverse
     m.insert("space-x-reverse".into(), "& > :not([hidden]) ~ :not([hidden]) { --garur-space-x-reverse:1; }".into());
     m.insert("space-y-reverse".into(), "& > :not([hidden]) ~ :not([hidden]) { --garur-space-y-reverse:1; }".into());
 }
-
-// ─── Sizing ───
 
 fn gen_sizing(m: &mut FxHashMap<String, String>) {
     for &(k, v) in SPACING {
@@ -418,7 +382,6 @@ fn gen_sizing(m: &mut FxHashMap<String, String>) {
         m.insert(format!("h-{}", k), format!("height:{}", v));
     }
 
-    // Fractions
     for (k, v) in [
         ("1/2", "50%"), ("1/3", "33.333333%"), ("2/3", "66.666667%"),
         ("1/4", "25%"), ("2/4", "50%"), ("3/4", "75%"),
@@ -434,7 +397,6 @@ fn gen_sizing(m: &mut FxHashMap<String, String>) {
         m.insert(format!("basis-{}", k), format!("flex-basis:{}", v));
     }
 
-    // Max-width named sizes (Tailwind-like)
     for (k, v) in [
         ("xs", "20rem"), ("sm", "24rem"), ("md", "28rem"), ("lg", "32rem"),
         ("xl", "36rem"), ("2xl", "42rem"), ("3xl", "48rem"), ("4xl", "56rem"),
@@ -451,8 +413,6 @@ fn gen_sizing(m: &mut FxHashMap<String, String>) {
     m.insert("min-h-full".into(), "min-height:100%".into());
     m.insert("min-h-screen".into(), "min-height:100vh".into());
 }
-
-// ─── Typography ───
 
 fn gen_typography(m: &mut FxHashMap<String, String>) {
     for (k, v) in [
@@ -492,13 +452,11 @@ fn gen_typography(m: &mut FxHashMap<String, String>) {
         m.insert(format!("text-{}", k), format!("text-align:{}", v));
     }
 
-    // Transform
     m.insert("uppercase".into(), "text-transform:uppercase".into());
     m.insert("lowercase".into(), "text-transform:lowercase".into());
     m.insert("capitalize".into(), "text-transform:capitalize".into());
     m.insert("normal-case".into(), "text-transform:none".into());
 
-    // Decoration
     m.insert("underline".into(), "text-decoration-line:underline".into());
     m.insert("overline".into(), "text-decoration-line:overline".into());
     m.insert("line-through".into(), "text-decoration-line:line-through".into());
@@ -511,7 +469,6 @@ fn gen_typography(m: &mut FxHashMap<String, String>) {
         m.insert(format!("decoration-{}", k), format!("text-decoration-style:{}", v));
     }
 
-    // Decoration thickness
     for &(k, v) in BORDER_WIDTH {
         if k == "DEFAULT" { continue; }
         m.insert(format!("decoration-{}", k), format!("text-decoration-thickness:{}", v));
@@ -519,13 +476,11 @@ fn gen_typography(m: &mut FxHashMap<String, String>) {
     m.insert("decoration-auto".into(), "text-decoration-thickness:auto".into());
     m.insert("decoration-from-font".into(), "text-decoration-thickness:from-font".into());
 
-    // Underline offset
     for &(k, v) in SPACING {
         m.insert(format!("underline-offset-{}", k), format!("text-underline-offset:{}", v));
     }
     m.insert("underline-offset-auto".into(), "text-underline-offset:auto".into());
 
-    // Whitespace / word-break
     for (k, v) in [
         ("normal", "normal"), ("nowrap", "nowrap"), ("pre", "pre"),
         ("pre-line", "pre-line"), ("pre-wrap", "pre-wrap"),
@@ -533,16 +488,13 @@ fn gen_typography(m: &mut FxHashMap<String, String>) {
     ] {
         m.insert(format!("whitespace-{}", k), format!("white-space:{}", v));
     }
-    for (k, v) in [
-        ("normal", "normal"), ("nowrap", "keep-all"),
-        ("break", "break-all"), ("keep", "keep-all"),
-    ] {
-        m.insert(format!("break-{}", k), format!("word-break:{}", v));
-    }
+
+    m.insert("break-normal".into(), "word-break:normal;overflow-wrap:normal".into());
+    m.insert("break-all".into(), "word-break:break-all".into());
+    m.insert("break-keep".into(), "word-break:keep-all".into());
     m.insert("break-words".into(), "overflow-wrap:break-word".into());
     m.insert("break-anywhere".into(), "overflow-wrap:anywhere".into());
 
-    // Line-height
     for (k, v) in [
         ("none", "1"), ("tight", "1.25"), ("snug", "1.375"),
         ("normal", "1.5"), ("relaxed", "1.625"), ("loose", "2"),
@@ -552,7 +504,6 @@ fn gen_typography(m: &mut FxHashMap<String, String>) {
         m.insert(format!("leading-{}", k), format!("line-height:{}", v));
     }
 
-    // Letter spacing
     for (k, v) in [
         ("tighter", "-0.05em"), ("tight", "-0.025em"), ("normal", "0"),
         ("wide", "0.025em"), ("wider", "0.05em"), ("widest", "0.1em"),
@@ -560,29 +511,24 @@ fn gen_typography(m: &mut FxHashMap<String, String>) {
         m.insert(format!("tracking-{}", k), format!("letter-spacing:{}", v));
     }
 
-    // Text indent
     for &(k, v) in SPACING {
         m.insert(format!("indent-{}", k), format!("text-indent:{}", v));
     }
 
-    // Line clamp (dynamic via arbitrary)
     for n in 1..=6 {
         m.insert(format!("line-clamp-{}", n), format!("display:-webkit-box;-webkit-line-clamp:{};-webkit-box-orient:vertical;overflow:hidden", n));
     }
     m.insert("line-clamp-none".into(), "overflow:visible;-webkit-line-clamp:unset;-webkit-box-orient:horizontal;display:block".into());
 
-    // Text overflow
     m.insert("truncate".into(), "overflow:hidden;text-overflow:ellipsis;white-space:nowrap".into());
     m.insert("text-ellipsis".into(), "text-overflow:ellipsis".into());
     m.insert("text-clip".into(), "text-overflow:clip".into());
 
-    // Text wrap
     m.insert("text-wrap".into(), "text-wrap:wrap".into());
     m.insert("text-nowrap".into(), "text-wrap:nowrap".into());
     m.insert("text-balance".into(), "text-wrap:balance".into());
     m.insert("text-pretty".into(), "text-wrap:pretty".into());
 
-    // Vertical align
     for (k, v) in [
         ("baseline", "baseline"), ("top", "top"), ("middle", "middle"),
         ("bottom", "bottom"), ("text-top", "text-top"),
@@ -591,7 +537,6 @@ fn gen_typography(m: &mut FxHashMap<String, String>) {
         m.insert(format!("align-{}", k), format!("vertical-align:{}", v));
     }
 
-    // List style
     for (k, v) in [
         ("none", "none"), ("disc", "disc"), ("decimal", "decimal"),
         ("circle", "circle"), ("square", "square"),
@@ -601,20 +546,16 @@ fn gen_typography(m: &mut FxHashMap<String, String>) {
     m.insert("list-inside".into(), "list-style-position:inside".into());
     m.insert("list-outside".into(), "list-style-position:outside".into());
 
-    // Hyphens
     m.insert("hyphens-none".into(), "hyphens:none".into());
     m.insert("hyphens-manual".into(), "hyphens:manual".into());
     m.insert("hyphens-auto".into(), "hyphens:auto".into());
 
-    // Font smoothing
     m.insert("antialiased".into(), "-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale".into());
     m.insert("subpixel-antialiased".into(), "-webkit-font-smoothing:auto;-moz-osx-font-smoothing:auto".into());
 
-    // Font style
     m.insert("italic".into(), "font-style:italic".into());
     m.insert("not-italic".into(), "font-style:normal".into());
 
-    // Font variant numeric
     for (k, v) in [
         ("normal-nums", "normal"),
         ("ordinal", "ordinal"),
@@ -630,11 +571,9 @@ fn gen_typography(m: &mut FxHashMap<String, String>) {
     }
 }
 
-// ─── Colors ───
-
 fn gen_colors(m: &mut FxHashMap<String, String>, palette: &FxHashMap<String, String>) {
+    // Pre-size per-token expansions (11 color props + 21 opacity steps × 6 = ~140 per token)
     for (token, color) in palette {
-        // Static colors
         m.insert(format!("bg-{}", token), format!("background-color:{}", color));
         m.insert(format!("text-{}", token), format!("color:{}", color));
         m.insert(format!("border-{}", token), format!("border-color:{}", color));
@@ -645,13 +584,11 @@ fn gen_colors(m: &mut FxHashMap<String, String>, palette: &FxHashMap<String, Str
         m.insert(format!("decoration-{}", token), format!("text-decoration-color:{}", color));
         m.insert(format!("outline-{}", token), format!("outline-color:{}", color));
         m.insert(format!("ring-{}", token), format!("--garur-ring-color:{}", color));
-
-        // Gradient stops
+        m.insert(format!("divide-{}", token), format!("& > :not([hidden]) ~ :not([hidden]) {{ border-color:{}; }}", color));
         m.insert(format!("from-{}", token), format!("--garur-gradient-from:{}", color));
         m.insert(format!("via-{}", token), format!("--garur-gradient-via:{}", color));
         m.insert(format!("to-{}", token), format!("--garur-gradient-to:{}", color));
 
-        // Opacity variants
         for &op in OPACITY_STEPS {
             let c = apply_alpha(color, op);
             m.insert(format!("bg-{}/{}", token, op), format!("background-color:{}", c));
@@ -664,7 +601,6 @@ fn gen_colors(m: &mut FxHashMap<String, String>, palette: &FxHashMap<String, Str
         }
     }
 
-    // Special color tokens
     for (k, v) in [
         ("bg-transparent", "background-color:transparent"),
         ("bg-current", "background-color:currentColor"),
@@ -686,8 +622,6 @@ fn gen_colors(m: &mut FxHashMap<String, String>, palette: &FxHashMap<String, Str
     }
 }
 
-// ─── Gradients ───
-
 fn gen_gradients(m: &mut FxHashMap<String, String>, _palette: &FxHashMap<String, String>) {
     for (k, v) in [
         ("bg-gradient-to-t", "linear-gradient(to top, var(--garur-gradient-stops))"),
@@ -705,44 +639,32 @@ fn gen_gradients(m: &mut FxHashMap<String, String>, _palette: &FxHashMap<String,
     }
 }
 
-// ─── Border ───
-
 fn gen_border(m: &mut FxHashMap<String, String>) {
-    // Radius
     for &(k, v) in RADIUS {
         if k == "DEFAULT" {
             m.insert("rounded".into(), format!("border-radius:{}", v));
         } else {
             m.insert(format!("rounded-{}", k), format!("border-radius:{}", v));
-            m.insert(format!("rounded-t-{}", k),
-                format!("border-top-left-radius:{};border-top-right-radius:{}", v, v));
-            m.insert(format!("rounded-r-{}", k),
-                format!("border-top-right-radius:{};border-bottom-right-radius:{}", v, v));
-            m.insert(format!("rounded-b-{}", k),
-                format!("border-bottom-left-radius:{};border-bottom-right-radius:{}", v, v));
-            m.insert(format!("rounded-l-{}", k),
-                format!("border-top-left-radius:{};border-bottom-left-radius:{}", v, v));
+            m.insert(format!("rounded-t-{}", k), format!("border-top-left-radius:{};border-top-right-radius:{}", v, v));
+            m.insert(format!("rounded-r-{}", k), format!("border-top-right-radius:{};border-bottom-right-radius:{}", v, v));
+            m.insert(format!("rounded-b-{}", k), format!("border-bottom-left-radius:{};border-bottom-right-radius:{}", v, v));
+            m.insert(format!("rounded-l-{}", k), format!("border-top-left-radius:{};border-bottom-left-radius:{}", v, v));
             m.insert(format!("rounded-tl-{}", k), format!("border-top-left-radius:{}", v));
             m.insert(format!("rounded-tr-{}", k), format!("border-top-right-radius:{}", v));
             m.insert(format!("rounded-br-{}", k), format!("border-bottom-right-radius:{}", v));
             m.insert(format!("rounded-bl-{}", k), format!("border-bottom-left-radius:{}", v));
-            m.insert(format!("rounded-s-{}", k),
-                format!("border-start-start-radius:{};border-end-start-radius:{}", v, v));
-            m.insert(format!("rounded-e-{}", k),
-                format!("border-start-end-radius:{};border-end-end-radius:{}", v, v));
+            m.insert(format!("rounded-s-{}", k), format!("border-start-start-radius:{};border-end-start-radius:{}", v, v));
+            m.insert(format!("rounded-e-{}", k), format!("border-start-end-radius:{};border-end-end-radius:{}", v, v));
         }
     }
 
-    // Width
     for &(k, v) in BORDER_WIDTH {
         if k == "DEFAULT" {
             m.insert("border".into(), format!("border-width:{}", v));
         } else {
             m.insert(format!("border-{}", k), format!("border-width:{}", v));
-            m.insert(format!("border-x-{}", k),
-                format!("border-left-width:{};border-right-width:{}", v, v));
-            m.insert(format!("border-y-{}", k),
-                format!("border-top-width:{};border-bottom-width:{}", v, v));
+            m.insert(format!("border-x-{}", k), format!("border-left-width:{};border-right-width:{}", v, v));
+            m.insert(format!("border-y-{}", k), format!("border-top-width:{};border-bottom-width:{}", v, v));
             m.insert(format!("border-s-{}", k), format!("border-inline-start-width:{}", v));
             m.insert(format!("border-e-{}", k), format!("border-inline-end-width:{}", v));
             m.insert(format!("border-t-{}", k), format!("border-top-width:{}", v));
@@ -752,7 +674,15 @@ fn gen_border(m: &mut FxHashMap<String, String>) {
         }
     }
 
-    // Style
+    m.insert("border-t".into(), "border-top-width:1px".into());
+    m.insert("border-r".into(), "border-right-width:1px".into());
+    m.insert("border-b".into(), "border-bottom-width:1px".into());
+    m.insert("border-l".into(), "border-left-width:1px".into());
+    m.insert("border-x".into(), "border-left-width:1px;border-right-width:1px".into());
+    m.insert("border-y".into(), "border-top-width:1px;border-bottom-width:1px".into());
+    m.insert("border-s".into(), "border-inline-start-width:1px".into());
+    m.insert("border-e".into(), "border-inline-end-width:1px".into());
+
     for (k, v) in [
         ("solid", "solid"), ("dashed", "dashed"), ("dotted", "dotted"),
         ("double", "double"), ("hidden", "hidden"), ("none", "none"),
@@ -760,24 +690,26 @@ fn gen_border(m: &mut FxHashMap<String, String>) {
         m.insert(format!("border-{}", k), format!("border-style:{}", v));
     }
 
-    // Divide x/y
     for &(k, v) in BORDER_WIDTH {
         if k == "DEFAULT" { continue; }
         m.insert(format!("divide-x-{}", k), format!(
-            "& > :not([hidden]) ~ :not([hidden]) {{ --garur-divide-x-reverse:0; border-right-width:calc({v} * var(--garur-divide-x-reverse)); border-left-width:calc({v} * calc(1 - var(--garur-divide-x-reverse))); }}",
-            v = v
-        ));
+            "& > :not([hidden]) ~ :not([hidden]) {{ --garur-divide-x-reverse:0; border-right-width:calc({v} * var(--garur-divide-x-reverse)); border-left-width:calc({v} * calc(1 - var(--garur-divide-x-reverse))); }}", v = v));
         m.insert(format!("divide-y-{}", k), format!(
-            "& > :not([hidden]) ~ :not([hidden]) {{ --garur-divide-y-reverse:0; border-top-width:calc({v} * calc(1 - var(--garur-divide-y-reverse))); border-bottom-width:calc({v} * var(--garur-divide-y-reverse)); }}",
-            v = v
-        ));
+            "& > :not([hidden]) ~ :not([hidden]) {{ --garur-divide-y-reverse:0; border-top-width:calc({v} * calc(1 - var(--garur-divide-y-reverse))); border-bottom-width:calc({v} * var(--garur-divide-y-reverse)); }}", v = v));
     }
     m.insert("divide-x".into(), "& > :not([hidden]) ~ :not([hidden]) { border-left-width:1px; }".into());
     m.insert("divide-y".into(), "& > :not([hidden]) ~ :not([hidden]) { border-top-width:1px; }".into());
     m.insert("divide-x-reverse".into(), "& > :not([hidden]) ~ :not([hidden]) { --garur-divide-x-reverse:1; }".into());
     m.insert("divide-y-reverse".into(), "& > :not([hidden]) ~ :not([hidden]) { --garur-divide-y-reverse:1; }".into());
 
-    // Divide style
+    for &(k, v) in BORDER_WIDTH {
+        if k == "DEFAULT" { continue; }
+        m.insert(format!("divide-s-{}", k), format!("& > :not([hidden]) ~ :not([hidden]) {{ border-inline-start-width:{}; }}", v));
+        m.insert(format!("divide-e-{}", k), format!("& > :not([hidden]) ~ :not([hidden]) {{ border-inline-end-width:{}; }}", v));
+    }
+    m.insert("divide-s".into(), "& > :not([hidden]) ~ :not([hidden]) { border-inline-start-width:1px; }".into());
+    m.insert("divide-e".into(), "& > :not([hidden]) ~ :not([hidden]) { border-inline-end-width:1px; }".into());
+
     for (k, v) in [
         ("solid", "solid"), ("dashed", "dashed"), ("dotted", "dotted"),
         ("double", "double"), ("none", "none"),
@@ -785,7 +717,6 @@ fn gen_border(m: &mut FxHashMap<String, String>) {
         m.insert(format!("divide-{}", k), format!("& > :not([hidden]) ~ :not([hidden]) {{ border-style:{}; }}", v));
     }
 
-    // Outline
     m.insert("outline-none".into(), "outline:2px solid transparent;outline-offset:2px".into());
     m.insert("outline".into(), "outline-style:solid".into());
     m.insert("outline-dashed".into(), "outline-style:dashed".into());
@@ -800,15 +731,12 @@ fn gen_border(m: &mut FxHashMap<String, String>) {
     }
     m.insert("outline-offset-0".into(), "outline-offset:0px".into());
 
-    // Border collapse
     m.insert("border-collapse".into(), "border-collapse:collapse".into());
     m.insert("border-separate".into(), "border-collapse:separate".into());
     for &(k, v) in SPACING {
         m.insert(format!("border-spacing-{}", k), format!("border-spacing:{}", v));
     }
 }
-
-// ─── Effects ───
 
 fn gen_effects(m: &mut FxHashMap<String, String>) {
     for &(k, v) in OPACITY {
@@ -823,21 +751,17 @@ fn gen_effects(m: &mut FxHashMap<String, String>) {
         }
     }
 
-    // Ring
     m.insert("ring".into(), "--garur-ring-width:3px;--garur-ring-color:rgb(59 130 246 / 0.5);box-shadow:0 0 0 calc(var(--garur-ring-width) + var(--garur-ring-offset-width, 0px)) var(--garur-ring-color)".into());
     m.insert("ring-0".into(), "--garur-ring-width:0px;box-shadow:0 0 0 calc(var(--garur-ring-width) + var(--garur-ring-offset-width, 0px)) var(--garur-ring-color, rgb(59 130 246 / 0.5))".into());
     for (k, w) in [("1", "1px"), ("2", "2px"), ("4", "4px"), ("8", "8px")] {
         m.insert(format!("ring-{}", k), format!(
-            "--garur-ring-width:{};box-shadow:0 0 0 calc(var(--garur-ring-width) + var(--garur-ring-offset-width, 0px)) var(--garur-ring-color, rgb(59 130 246 / 0.5))",
-            w
-        ));
+            "--garur-ring-width:{};box-shadow:0 0 0 calc(var(--garur-ring-width) + var(--garur-ring-offset-width, 0px)) var(--garur-ring-color, rgb(59 130 246 / 0.5))", w));
     }
     m.insert("ring-inset".into(), "--garur-ring-inset:inset".into());
     for &(k, v) in SPACING {
         m.insert(format!("ring-offset-{}", k), format!("--garur-ring-offset-width:{}", v));
     }
 
-    // Mix blend modes
     for (k, v) in [
         ("normal", "normal"), ("multiply", "multiply"), ("screen", "screen"),
         ("overlay", "overlay"), ("darken", "darken"), ("lighten", "lighten"),
@@ -851,13 +775,10 @@ fn gen_effects(m: &mut FxHashMap<String, String>) {
         m.insert(format!("bg-blend-{}", k), format!("background-blend-mode:{}", v));
     }
 
-    // Background
     for (k, v) in [("fixed", "fixed"), ("local", "local"), ("scroll", "scroll")] {
         m.insert(format!("bg-{}", k), format!("background-attachment:{}", v));
     }
-    for (k, v) in [("clip", "border-box"), ("padding", "padding-box"), ("content", "content-box")] {
-        m.insert(format!("bg-clip-{}", k), format!("background-clip:{}", v));
-    }
+
     for (k, v) in [("border", "border-box"), ("padding", "padding-box"), ("content", "content-box")] {
         m.insert(format!("bg-origin-{}", k), format!("background-origin:{}", v));
     }
@@ -881,8 +802,6 @@ fn gen_effects(m: &mut FxHashMap<String, String>) {
     }
     m.insert("bg-none".into(), "background-image:none".into());
 }
-
-// ─── Flex ───
 
 fn gen_flex(m: &mut FxHashMap<String, String>) {
     m.insert("flex".into(), "display:flex".into());
@@ -926,7 +845,10 @@ fn gen_flex(m: &mut FxHashMap<String, String>) {
     }
     for (k, v) in [
         ("start", "flex-start"), ("end", "flex-end"), ("center", "center"),
+        ("between", "space-between"), ("around", "space-around"),
+        ("evenly", "space-evenly"),
         ("baseline", "baseline"), ("stretch", "stretch"),
+        ("normal", "normal"),
     ] {
         m.insert(format!("content-{}", k), format!("align-content:{}", v));
     }
@@ -946,8 +868,6 @@ fn gen_flex(m: &mut FxHashMap<String, String>) {
         m.insert(format!("place-self-{}", k), format!("place-self:{}", v));
     }
 }
-
-// ─── Grid ───
 
 fn gen_grid(m: &mut FxHashMap<String, String>) {
     m.insert("grid".into(), "display:grid".into());
@@ -997,8 +917,6 @@ fn gen_grid(m: &mut FxHashMap<String, String>) {
     }
 }
 
-// ─── Columns ───
-
 fn gen_columns(m: &mut FxHashMap<String, String>) {
     for n in 1..=12 {
         m.insert(format!("columns-{}", n), format!("columns:{}", n));
@@ -1014,16 +932,12 @@ fn gen_columns(m: &mut FxHashMap<String, String>) {
     }
 }
 
-// ─── Transforms ───
-
 fn gen_transform(m: &mut FxHashMap<String, String>) {
-    // With CSS variables for chaining
     m.insert("transform".into(), "transform:translate(var(--garur-translate-x, 0), var(--garur-translate-y, 0)) rotate(var(--garur-rotate, 0)) skewX(var(--garur-skew-x, 0)) skewY(var(--garur-skew-y, 0)) scaleX(var(--garur-scale-x, 1)) scaleY(var(--garur-scale-y, 1))".into());
     m.insert("transform-none".into(), "transform:none".into());
     m.insert("transform-gpu".into(), "transform:translate3d(var(--garur-translate-x, 0), var(--garur-translate-y, 0), 0) rotate(var(--garur-rotate, 0)) skewX(var(--garur-skew-x, 0)) skewY(var(--garur-skew-y, 0)) scaleX(var(--garur-scale-x, 1)) scaleY(var(--garur-scale-y, 1))".into());
     m.insert("transform-cpu".into(), "transform:none".into());
 
-    // Rotate
     for (k, v) in [
         ("0", "0deg"), ("1", "1deg"), ("2", "2deg"), ("3", "3deg"),
         ("6", "6deg"), ("12", "12deg"), ("45", "45deg"), ("90", "90deg"),
@@ -1033,7 +947,6 @@ fn gen_transform(m: &mut FxHashMap<String, String>) {
         m.insert(format!("-rotate-{}", k), format!("--garur-rotate:-{};transform:var(--garur-rotate)", v));
     }
 
-    // Scale
     for (k, v) in [
         ("0", "0"), ("50", "0.5"), ("75", "0.75"), ("90", "0.9"),
         ("95", "0.95"), ("100", "1"), ("105", "1.05"), ("110", "1.1"),
@@ -1044,7 +957,6 @@ fn gen_transform(m: &mut FxHashMap<String, String>) {
         m.insert(format!("scale-y-{}", k), format!("--garur-scale-y:{};transform:scaleY(var(--garur-scale-y))", v));
     }
 
-    // Translate
     for &(k, v) in SPACING {
         m.insert(format!("translate-x-{}", k), format!("--garur-translate-x:{};transform:translateX(var(--garur-translate-x))", v));
         m.insert(format!("translate-y-{}", k), format!("--garur-translate-y:{};transform:translateY(var(--garur-translate-y))", v));
@@ -1056,7 +968,6 @@ fn gen_transform(m: &mut FxHashMap<String, String>) {
     m.insert("translate-x-1/2".into(), "--garur-translate-x:50%;transform:translateX(50%)".into());
     m.insert("translate-y-1/2".into(), "--garur-translate-y:50%;transform:translateY(50%)".into());
 
-    // Skew
     for (k, v) in [
         ("0", "0deg"), ("1", "1deg"), ("2", "2deg"), ("3", "3deg"),
         ("6", "6deg"), ("12", "12deg"),
@@ -1067,7 +978,6 @@ fn gen_transform(m: &mut FxHashMap<String, String>) {
         m.insert(format!("-skew-y-{}", k), format!("--garur-skew-y:-{};transform:skewY(var(--garur-skew-y))", v));
     }
 
-    // Origin
     for (k, v) in [
         ("center", "center"), ("top", "top"), ("top-right", "top right"),
         ("right", "right"), ("bottom-right", "bottom right"),
@@ -1076,22 +986,16 @@ fn gen_transform(m: &mut FxHashMap<String, String>) {
     ] {
         m.insert(format!("origin-{}", k), format!("transform-origin:{}", v));
     }
-    for (k, v) in [("x", "x"), ("y", "y"), ("z", "z")] {
-        let _ = (k, v);
-    }
     m.insert("origin-x-center".into(), "transform-origin:center x".into());
     m.insert("origin-y-center".into(), "transform-origin:center y".into());
     m.insert("origin-z-center".into(), "transform-origin:center z".into());
 }
 
-// ─── Filters ───
-
 fn gen_filter(m: &mut FxHashMap<String, String>) {
-    // Blur
-    for &(k, v) in [
+    for (k, v) in [
         ("none", "0"), ("sm", "4px"), ("DEFAULT", "8px"), ("md", "12px"),
         ("lg", "16px"), ("xl", "24px"), ("2xl", "40px"), ("3xl", "64px"),
-    ].iter() {
+    ] {
         if k == "DEFAULT" {
             m.insert("blur".into(), format!("--garur-blur:blur({});filter:var(--garur-blur)", v));
             m.insert("backdrop-blur".into(), format!("--garur-backdrop-blur:blur({});backdrop-filter:var(--garur-backdrop-blur)", v));
@@ -1136,8 +1040,6 @@ fn gen_filter(m: &mut FxHashMap<String, String>) {
     m.insert("backdrop-filter-none".into(), "backdrop-filter:none".into());
 }
 
-// ─── Animations ───
-
 fn gen_animation(m: &mut FxHashMap<String, String>) {
     for (k, v) in [
         ("none", "none"),
@@ -1170,8 +1072,6 @@ fn gen_animation(m: &mut FxHashMap<String, String>) {
         m.insert(format!("ease-{}", k), format!("transition-timing-function:{}", v));
     }
 }
-
-// ─── Interaction ───
 
 fn gen_interaction(m: &mut FxHashMap<String, String>) {
     for (k, v) in [
@@ -1211,13 +1111,11 @@ fn gen_interaction(m: &mut FxHashMap<String, String>) {
     }
     m.insert("resize".into(), "resize:both".into());
 
-    // Scroll
     m.insert("scroll-auto".into(), "scroll-behavior:auto".into());
     m.insert("scroll-smooth".into(), "scroll-behavior:smooth".into());
 
-    // Snap
     for (k, v) in [("none", "none"), ("x", "x"), ("y", "y"), ("both", "both")] {
-        m.insert(format!("snap-{}", k), format!("scroll-snap-type:{} mandatory", v));
+        m.insert(format!("snap-{}", k), format!("scroll-snap-type:{} var(--garur-scroll-snap-strictness, mandatory)", v));
     }
     for (k, v) in [
         ("start", "start"), ("end", "end"), ("center", "center"),
@@ -1225,12 +1123,11 @@ fn gen_interaction(m: &mut FxHashMap<String, String>) {
     ] {
         m.insert(format!("snap-{}", k), format!("scroll-snap-align:{}", v));
     }
-    m.insert("snap-mandatory".into(), "scroll-snap-type:var(--garur-scroll-snap-strictness, mandatory)".into());
-    m.insert("snap-proximity".into(), "scroll-snap-type:var(--garur-scroll-snap-strictness, proximity)".into());
+    m.insert("snap-mandatory".into(), "--garur-scroll-snap-strictness:mandatory".into());
+    m.insert("snap-proximity".into(), "--garur-scroll-snap-strictness:proximity".into());
     m.insert("snap-always".into(), "scroll-snap-stop:always".into());
     m.insert("snap-normal".into(), "scroll-snap-stop:normal".into());
 
-    // Touch
     for (k, v) in [
         ("auto", "auto"), ("none", "none"),
         ("pan-x", "pan-x"), ("pan-left", "pan-left"),
@@ -1241,7 +1138,6 @@ fn gen_interaction(m: &mut FxHashMap<String, String>) {
         m.insert(format!("touch-{}", k), format!("touch-action:{}", v));
     }
 
-    // Will change
     for (k, v) in [
         ("auto", "auto"), ("scroll", "scroll-position"),
         ("contents", "contents"), ("transform", "transform"),
@@ -1249,26 +1145,16 @@ fn gen_interaction(m: &mut FxHashMap<String, String>) {
         m.insert(format!("will-change-{}", k), format!("will-change:{}", v));
     }
 
-    // Scrollbar (Firefox)
     m.insert("scrollbar-auto".into(), "scrollbar-width:auto;scrollbar-color:auto".into());
     m.insert("scrollbar-thin".into(), "scrollbar-width:thin".into());
     m.insert("scrollbar-none".into(), "scrollbar-width:none".into());
 }
 
-// ─── Scroll (already in spacing) ───
-
-fn gen_scroll(_m: &mut FxHashMap<String, String>) {}
-
-// ─── SVG ───
-
 fn gen_svg(m: &mut FxHashMap<String, String>) {
-    // Stroke width
     for (k, v) in [("0", "0"), ("1", "1"), ("2", "2")] {
         m.insert(format!("stroke-{}", k), format!("stroke-width:{}", v));
     }
 }
-
-// ─── Accessibility ───
 
 fn gen_accessibility(m: &mut FxHashMap<String, String>) {
     m.insert("sr-only".into(), "position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0".into());
@@ -1277,53 +1163,47 @@ fn gen_accessibility(m: &mut FxHashMap<String, String>) {
     m.insert("forced-color-adjust-none".into(), "forced-color-adjust:none".into());
 }
 
-// ─── Table ───
-
 fn gen_table(m: &mut FxHashMap<String, String>) {
     m.insert("table-auto".into(), "table-layout:auto".into());
     m.insert("table-fixed".into(), "table-layout:fixed".into());
-    m.insert("caption-top".into(), "caption-side:top".into());
-    m.insert("caption-bottom".into(), "caption-side:bottom".into());
     m.insert("border-collapse".into(), "border-collapse:collapse".into());
     m.insert("border-separate".into(), "border-collapse:separate".into());
 }
 
-// ─── Misc ───
-
 fn gen_misc(m: &mut FxHashMap<String, String>) {
-    // Backface visibility
     m.insert("backface-visible".into(), "backface-visibility:visible".into());
     m.insert("backface-hidden".into(), "backface-visibility:hidden".into());
-
-    // Content
     m.insert("content-none".into(), "content:none".into());
-
-    // Empty cells
     m.insert("empty-cells-show".into(), "empty-cells:show".into());
     m.insert("empty-cells-hide".into(), "empty-cells:hide".into());
-
-    // Text color inherited shorthand
     m.insert("text-inherit".into(), "color:inherit".into());
-
-    // Hyphenation
     m.insert("text-start".into(), "text-align:start".into());
     m.insert("text-end".into(), "text-align:end".into());
 }
 
-// ─── Container Query class ───
+fn gen_container_smart(m: &mut FxHashMap<String, String>) {
+    m.insert("container".into(), "width:100%".into());
+
+    for (name, w) in [
+        ("sm", "640px"), ("md", "768px"), ("lg", "1024px"),
+        ("xl", "1280px"), ("2xl", "1536px"),
+    ] {
+        m.insert(format!("container-{}", name), format!("max-width:{}", w));
+    }
+
+    m.insert("container-pad".into(), "padding-left:1rem;padding-right:1rem".into());
+    m.insert("container-center".into(), "margin-left:auto;margin-right:auto".into());
+}
 
 fn gen_container_queries(m: &mut FxHashMap<String, String>) {
     m.insert("@container".into(), "container-type:inline-size".into());
     m.insert("container-normal".into(), "container-type:normal".into());
     m.insert("container-inline-size".into(), "container-type:inline-size".into());
     m.insert("container-size".into(), "container-type:size".into());
-    // Named containers
     for name in ["main", "sidebar", "card", "hero", "content"] {
         m.insert(format!("@container/{}", name), format!("container-type:inline-size;container-name:{}", name));
     }
 }
-
-// ─── Text Shadow ───
 
 fn gen_text_shadow(m: &mut FxHashMap<String, String>) {
     m.insert("text-shadow-sm".into(), "text-shadow:0 1px 2px rgb(0 0 0 / 0.05)".into());
@@ -1334,25 +1214,15 @@ fn gen_text_shadow(m: &mut FxHashMap<String, String>) {
     m.insert("text-shadow-none".into(), "text-shadow:none".into());
 }
 
-// ─── Full Backdrop Filters ───
-
 fn gen_backdrop_full(m: &mut FxHashMap<String, String>) {
     for (k, v) in [
         ("0", "0deg"), ("15", "15deg"), ("30", "30deg"),
         ("60", "60deg"), ("90", "90deg"), ("180", "180deg"),
     ] {
-        m.insert(
-            format!("backdrop-hue-rotate-{}", k),
-            format!("--garur-backdrop-hue-rotate:hue-rotate({});backdrop-filter:var(--garur-backdrop-hue-rotate)", v),
-        );
-        m.insert(
-            format!("-backdrop-hue-rotate-{}", k),
-            format!("--garur-backdrop-hue-rotate:hue-rotate(-{});backdrop-filter:var(--garur-backdrop-hue-rotate)", v),
-        );
+        m.insert(format!("backdrop-hue-rotate-{}", k), format!("--garur-backdrop-hue-rotate:hue-rotate({});backdrop-filter:var(--garur-backdrop-hue-rotate)", v));
+        m.insert(format!("-backdrop-hue-rotate-{}", k), format!("--garur-backdrop-hue-rotate:hue-rotate(-{});backdrop-filter:var(--garur-backdrop-hue-rotate)", v));
     }
 
-    // backdrop opacity is a special filter — handled by background rgba
-    // but Tailwind provides it as a class for consistency
     for &(k, v) in OPACITY {
         m.insert(format!("backdrop-opacity-{}", k), format!("--garur-backdrop-opacity:opacity({});backdrop-filter:var(--garur-backdrop-opacity)", v));
     }
@@ -1365,8 +1235,6 @@ fn gen_backdrop_full(m: &mut FxHashMap<String, String>) {
     m.insert("backdrop-sepia-0".into(), "--garur-backdrop-sepia:sepia(0);backdrop-filter:var(--garur-backdrop-sepia)".into());
 }
 
-// ─── Writing Mode / Text Orientation ───
-
 fn gen_writing_mode(m: &mut FxHashMap<String, String>) {
     m.insert("writing-horizontal-tb".into(), "writing-mode:horizontal-tb".into());
     m.insert("writing-vertical-rl".into(), "writing-mode:vertical-rl".into());
@@ -1376,11 +1244,7 @@ fn gen_writing_mode(m: &mut FxHashMap<String, String>) {
     m.insert("text-orientation-sideways".into(), "text-orientation:sideways".into());
 }
 
-// ─── Logical Properties (RTL/LTR-aware) ───
-
 fn gen_logical_props(m: &mut FxHashMap<String, String>) {
-    // Already have ps-, pe-, ms-, me-, start-, end- in spacing
-    // Add logical border-radius
     for &(k, v) in RADIUS {
         if k == "DEFAULT" { continue; }
         m.insert(format!("rounded-ss-{}", k), format!("border-start-start-radius:{}", v));
@@ -1390,18 +1254,6 @@ fn gen_logical_props(m: &mut FxHashMap<String, String>) {
     }
 }
 
-// ─── Extra Colors (Ring / Outline / Divide / Placeholder) ───
-
 fn gen_more_colors(m: &mut FxHashMap<String, String>) {
-    // Handled in gen_colors — additional tokens
     m.insert("ring-inset".into(), "--garur-ring-inset:inset".into());
-}
-
-// ─── Extra Layout — Split utilities ───
-
-fn _gen_extra_layout(m: &mut FxHashMap<String, String>) {
-    // Position: split-*  (for compatibility)
-    for &(k, v) in SPACING {
-        m.insert(format!("top-{}", k), format!("top:{}", v));
-    }
 }
