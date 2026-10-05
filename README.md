@@ -86,7 +86,7 @@ First-class TypeScript. NAPI-native bindings. Persistent disk cache across proce
 
 ### 🇮🇳 Made in India, Built for the World
 
-Conceived, designed, and engineered in Kolkata, India. Proudly open source.
+Conceived, designed, and engineered in old malda, India. Proudly open source.
 
 ---
 
@@ -892,14 +892,14 @@ If GarurSaili-CSS makes your builds faster, please consider giving it a ⭐ on G
 
 - **Issues:** [github.com/barshansarkar/garursaili-css/issues](https://github.com/barshansarkar/garursaili-css/issues)
 - **Discussions:** [github.com/barshansarkar/garursaili-css/discussions](https://github.com/barshansarkar/garursaili-css/discussions)
-- **Author:** Barshan Sarkar — Kolkata, India 🇮🇳
+- **Author:** Barshan Sarkar — old malda, India 🇮🇳
 - **Email:** [sarkarbarshan4@gmail.com](mailto:sarkarbarshan4@gmail.com)
 
 ---
 
 <div align="center">
 
-**Built with 🔥 in Kolkata, India**
+**Built with 🔥 in old malda, India**
 
 *"Garur doesn't walk. Garur flies."*
 
