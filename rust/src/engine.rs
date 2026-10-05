@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════
 // Engine — parse + escape + build + extract + finalize
+// SPEED: DashMap caches, ArcSwap config/palette/utils, Arc<str> rules
 // ═══════════════════════════════════════════════════════════════════
 
 use crate::palette_default;
@@ -10,22 +11,40 @@ use crate::variants::{
     apply_variants, collect_media_queries, collect_min_max_bps, collect_pointer_queries,
     collect_supports, has_starting_style, parse_variant, Variant, CONTAINER_SIZES,
 };
+use arc_swap::ArcSwap;
+use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHasher};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use std::hash::BuildHasherDefault;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
-const MAX_CACHE: usize = 50_000;
-const INIT_UTIL_CAP: usize = 32_768;
-const INIT_PAL_CAP: usize = 512;
+type FxBuildHasher = BuildHasherDefault<FxHasher>;
 
-pub static BUILD_HITS: AtomicU64 = AtomicU64::new(0);
+const MAX_CACHE:       usize = 50_000;
+const INIT_UTIL_CAP:   usize = 32_768;
+const INIT_PAL_CAP:    usize = 512;
+const INIT_BUILD_CAP:  usize = 8_192;
+const INIT_PARSE_CAP:  usize = 4_096;
+
+pub static BUILD_HITS:   AtomicU64 = AtomicU64::new(0);
 pub static BUILD_MISSES: AtomicU64 = AtomicU64::new(0);
-pub static PARSE_HITS: AtomicU64 = AtomicU64::new(0);
+pub static PARSE_HITS:   AtomicU64 = AtomicU64::new(0);
 pub static PARSE_MISSES: AtomicU64 = AtomicU64::new(0);
+
+
+
+
+
+
+
+
+
+
+
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
 pub struct CacheSnapshot {
@@ -35,24 +54,19 @@ pub struct CacheSnapshot {
 }
 
 pub fn export_cache_snapshot() -> CacheSnapshot {
-    let palette_hash = PALETTE_HASH.read().map(|h| *h).unwrap_or(0);
+    let palette_hash = PALETTE_HASH.load(Ordering::Relaxed);
     let entries: Vec<(String, Option<String>)> = BUILD_CACHE
-        .read()
-        .map(|c| c.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
-        .unwrap_or_default();
+        .iter()
+        .map(|kv| (kv.key().clone(), kv.value().as_ref().map(|s| s.to_string())))
+        .collect();
     CacheSnapshot { version: 1, palette_hash, entries }
 }
 
 pub fn import_cache_snapshot(snap: CacheSnapshot) -> bool {
-    let current_hash = PALETTE_HASH.read().map(|h| *h).unwrap_or(0);
-    if snap.palette_hash != current_hash && snap.palette_hash != 0 {
-        return false;
-    }
-    if let Ok(mut c) = BUILD_CACHE.write() {
-        c.reserve(snap.entries.len());
-        for (k, v) in snap.entries {
-            c.insert(k, v);
-        }
+    let current = PALETTE_HASH.load(Ordering::Relaxed);
+    if snap.palette_hash != current && snap.palette_hash != 0 { return false; }
+    for (k, v) in snap.entries {
+        BUILD_CACHE.insert(k, v.map(Arc::from));
     }
     true
 }
@@ -77,12 +91,10 @@ pub fn cache_stats() -> CacheStats {
     let bt = bh + bm;
     let pt = ph + pm;
     CacheStats {
-        build_hits: bh,
-        build_misses: bm,
-        parse_hits: ph,
-        parse_misses: pm,
-        build_entries: BUILD_CACHE.read().map(|c| c.len()).unwrap_or(0),
-        parse_entries: PARSE_CACHE.read().map(|c| c.len()).unwrap_or(0),
+        build_hits: bh, build_misses: bm,
+        parse_hits: ph, parse_misses: pm,
+        build_entries: BUILD_CACHE.len(),
+        parse_entries: PARSE_CACHE.len(),
         build_hit_rate: if bt == 0 { 0.0 } else { (bh as f64 / bt as f64) * 100.0 },
         parse_hit_rate: if pt == 0 { 0.0 } else { (ph as f64 / pt as f64) * 100.0 },
     }
@@ -139,17 +151,27 @@ struct ConfigJson {
     targets: Option<Vec<String>>,
 }
 
-static CONFIG: Lazy<RwLock<Arc<GarurConfig>>> =
-    Lazy::new(|| RwLock::new(Arc::new(GarurConfig::default())));
-static UTILS: Lazy<RwLock<FxHashMap<String, String>>> =
-    Lazy::new(|| RwLock::new(FxHashMap::with_capacity_and_hasher(INIT_UTIL_CAP, Default::default())));
-static PALETTE: Lazy<RwLock<FxHashMap<String, String>>> =
-    Lazy::new(|| RwLock::new(FxHashMap::with_capacity_and_hasher(INIT_PAL_CAP, Default::default())));
-static PARSE_CACHE: Lazy<RwLock<FxHashMap<String, Arc<Token>>>> =
-    Lazy::new(|| RwLock::new(FxHashMap::default()));
-static BUILD_CACHE: Lazy<RwLock<FxHashMap<String, Option<String>>>> =
-    Lazy::new(|| RwLock::new(FxHashMap::default()));
-static PALETTE_HASH: Lazy<RwLock<u64>> = Lazy::new(|| RwLock::new(0));
+// ─── Lock-free global state ───
+static CONFIG: Lazy<ArcSwap<GarurConfig>> =
+    Lazy::new(|| ArcSwap::from_pointee(GarurConfig::default()));
+
+static UTILS: Lazy<ArcSwap<FxHashMap<String, String>>> =
+    Lazy::new(|| ArcSwap::from_pointee(
+        FxHashMap::with_capacity_and_hasher(INIT_UTIL_CAP, Default::default())
+    ));
+
+static PALETTE: Lazy<ArcSwap<FxHashMap<String, String>>> =
+    Lazy::new(|| ArcSwap::from_pointee(
+        FxHashMap::with_capacity_and_hasher(INIT_PAL_CAP, Default::default())
+    ));
+
+static PARSE_CACHE: Lazy<DashMap<String, Arc<Token>, FxBuildHasher>> =
+    Lazy::new(|| DashMap::with_capacity_and_hasher(INIT_PARSE_CAP, FxBuildHasher::default()));
+
+static BUILD_CACHE: Lazy<DashMap<String, Option<Arc<str>>, FxBuildHasher>> =
+    Lazy::new(|| DashMap::with_capacity_and_hasher(INIT_BUILD_CAP, FxBuildHasher::default()));
+
+static PALETTE_HASH: AtomicU64 = AtomicU64::new(0);
 
 static CLASS_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
@@ -170,23 +192,22 @@ pub fn init_config(json: &str) -> Result<(), String> {
     let parsed: ConfigJson =
         serde_json::from_str(json).map_err(|e| format!("config parse: {}", e))?;
 
-    {
-        let mut guard = CONFIG.write().map_err(|_| "config lock")?;
-        let cfg = Arc::make_mut(&mut *guard);
-
-        if let Some(bps) = parsed.breakpoints {
-            let mut v: Vec<(String, String)> = bps.into_iter().collect();
-            v.sort_by_key(|(_, w)| w.trim_end_matches("px").parse::<u32>().unwrap_or(0));
-            cfg.breakpoints = v;
-        }
-        if let Some(dm) = parsed.dark_mode { cfg.dark_mode = dm; }
-        if let Some(imp) = parsed.important { cfg.important = imp; }
-        if let Some(t) = parsed.targets { cfg.targets = t; }
+    let mut cfg = (*CONFIG.load_full()).clone();
+    if let Some(bps) = parsed.breakpoints {
+        let mut v: Vec<(String, String)> = bps.into_iter().collect();
+        v.sort_by_key(|(_, w)| w.trim_end_matches("px").parse::<u32>().unwrap_or(0));
+        cfg.breakpoints = v;
     }
+    if let Some(dm) = parsed.dark_mode { cfg.dark_mode = dm; }
+    if let Some(imp) = parsed.important { cfg.important = imp; }
+    if let Some(t) = parsed.targets { cfg.targets = t; }
+    CONFIG.store(Arc::new(cfg));
 
     let user_extra = parsed.palette.as_ref().map(|p| p.len()).unwrap_or(0);
-    let mut flat: FxHashMap<String, String> =
-        FxHashMap::with_capacity_and_hasher(palette_default::DEFAULT_PALETTE.len() + user_extra, Default::default());
+    let mut flat: FxHashMap<String, String> = FxHashMap::with_capacity_and_hasher(
+        palette_default::DEFAULT_PALETTE.len() + user_extra,
+        Default::default(),
+    );
 
     for (k, v) in palette_default::DEFAULT_PALETTE {
         flat.insert((*k).to_string(), (*v).to_string());
@@ -208,7 +229,7 @@ pub fn init_config(json: &str) -> Result<(), String> {
         }
     }
 
-    if let Ok(mut p) = PALETTE.write() { *p = flat.clone(); }
+    PALETTE.store(Arc::new(flat.clone()));
     regenerate_utils(&flat);
     Ok(())
 }
@@ -226,7 +247,7 @@ pub fn init_handler(json: &str) -> Result<(), String> {
     }
     for (k, v) in pal { flat.insert(k, v); }
 
-    if let Ok(mut p) = PALETTE.write() { *p = flat.clone(); }
+    PALETTE.store(Arc::new(flat.clone()));
     regenerate_utils(&flat);
     Ok(())
 }
@@ -245,26 +266,73 @@ fn regenerate_utils(palette: &FxHashMap<String, String>) {
     }
     let new_hash = xxh3_64(buf.as_bytes());
 
-    let changed = PALETTE_HASH.read().map(|h| *h != new_hash).unwrap_or(true);
-    let utils_empty = UTILS.read().map(|u| u.is_empty()).unwrap_or(true);
+    let changed = PALETTE_HASH.load(Ordering::Relaxed) != new_hash;
+    let utils_empty = UTILS.load().is_empty();
     if !changed && !utils_empty { return; }
 
     let mut map = utilities::generate(palette);
     plugin::merge_into(&mut map);
 
-    if let Ok(mut u) = UTILS.write() { *u = map; }
-    if let Ok(mut c) = BUILD_CACHE.write() { c.clear(); }
-    if let Ok(mut h) = PALETTE_HASH.write() { *h = new_hash; }
+    UTILS.store(Arc::new(map));
+    BUILD_CACHE.clear();
+    PALETTE_HASH.store(new_hash, Ordering::Relaxed);
 }
 
+
+// ───────────────────────────────────────────────
+// File extraction cache — hash-keyed
+// ───────────────────────────────────────────────
+
+type FileKey = String;
+static FILE_CACHE: Lazy<DashMap<FileKey, (u64, Arc<Vec<String>>), FxBuildHasher>> =
+    Lazy::new(|| DashMap::with_capacity_and_hasher(256, FxBuildHasher::default()));
+
+/// Extract classes from a file, cached by content hash.
+pub fn extract_cached(path: &str) -> Option<Arc<Vec<String>>> {
+    use xxhash_rust::xxh3::xxh3_64;
+    use std::fs;
+
+    let meta = fs::metadata(path).ok()?;
+    if meta.len() > 5 * 1024 * 1024 { return None; }
+
+    let bytes = fs::read(path).ok()?;
+    let hash = xxh3_64(&bytes);
+
+    if let Some(entry) = FILE_CACHE.get(path) {
+        if entry.0 == hash {
+            return Some(Arc::clone(&entry.1));
+        }
+    }
+
+    let content = std::str::from_utf8(&bytes).ok()?;
+    let classes = extract(content);
+    let arc = Arc::new(classes);
+    FILE_CACHE.insert(path.to_string(), (hash, Arc::clone(&arc)));
+    Some(arc)
+}
+
+pub fn clear_file_cache() {
+    FILE_CACHE.clear();
+}
+
+pub fn file_cache_stats() -> (usize, usize) {
+    let n = FILE_CACHE.len();
+    let classes: usize = FILE_CACHE.iter().map(|e| e.1.len()).sum();
+    (n, classes)
+}
+
+
+
 pub fn clear_cache() {
-    if let Ok(mut c) = BUILD_CACHE.write() { c.clear(); }
-    if let Ok(mut c) = PARSE_CACHE.write() { c.clear(); }
+    BUILD_CACHE.clear();
+    PARSE_CACHE.clear();
+    FILE_CACHE.clear();
+    FINALIZE_CACHE.clear();   // ← new line
     reset_cache_stats();
 }
 
 pub fn clear_parse_cache() {
-    if let Ok(mut c) = PARSE_CACHE.write() { c.clear(); }
+    PARSE_CACHE.clear();
 }
 
 // ───────────────────────────────────────────────
@@ -274,11 +342,9 @@ pub fn clear_parse_cache() {
 pub fn parse(token: &str) -> Result<Arc<Token>, String> {
     if token.is_empty() { return Err("parse: empty token".into()); }
 
-    if let Ok(c) = PARSE_CACHE.read() {
-        if let Some(t) = c.get(token) {
-            PARSE_HITS.fetch_add(1, Ordering::Relaxed);
-            return Ok(Arc::clone(t));
-        }
+    if let Some(t) = PARSE_CACHE.get(token) {
+        PARSE_HITS.fetch_add(1, Ordering::Relaxed);
+        return Ok(Arc::clone(&t));
     }
     PARSE_MISSES.fetch_add(1, Ordering::Relaxed);
 
@@ -319,10 +385,8 @@ pub fn parse(token: &str) -> Result<Arc<Token>, String> {
         }
     });
 
-    if let Ok(mut c) = PARSE_CACHE.write() {
-        if c.len() >= MAX_CACHE { c.clear(); }
-        c.insert(token.to_string(), Arc::clone(&result));
-    }
+    if PARSE_CACHE.len() >= MAX_CACHE { PARSE_CACHE.clear(); }
+    PARSE_CACHE.insert(token.to_string(), Arc::clone(&result));
     Ok(result)
 }
 
@@ -381,9 +445,7 @@ pub fn escape_class(cls: &str) -> Cow<'_, str> {
         let is_dash = ch == '-';
         let is_us = ch == '_';
         if is_alnum || is_dash || is_us {
-            if i == 0 && ch.is_ascii_digit() {
-                out.push('\\');
-            }
+            if i == 0 && ch.is_ascii_digit() { out.push('\\'); }
             if i == 0 && is_dash && cls.len() > 1 {
                 if cls.as_bytes().get(1).map_or(false, |b| b.is_ascii_digit()) {
                     out.push('\\');
@@ -427,7 +489,7 @@ fn split_prefixes(cls: &str) -> (Vec<String>, String) {
 }
 
 // ───────────────────────────────────────────────
-// Query wrapping — batch, single pass
+// Query wrapping
 // ───────────────────────────────────────────────
 
 fn wrap_all_queries(
@@ -441,23 +503,15 @@ fn wrap_all_queries(
     cfg: &GarurConfig,
 ) -> String {
     let total = starting as usize
-        + bps.len()
-        + media.len()
-        + supports.len()
-        + pointer_queries.len()
-        + min_max_bps.len();
-    if total == 0 {
-        return rule.to_string();
-    }
+        + bps.len() + media.len() + supports.len()
+        + pointer_queries.len() + min_max_bps.len();
+    if total == 0 { return rule.to_string(); }
 
     let mut wrappers: Vec<String> = Vec::with_capacity(total);
 
-    if starting {
-        wrappers.push("@starting-style".to_string());
-    }
+    if starting { wrappers.push("@starting-style".to_string()); }
 
     if !bps.is_empty() {
-        // Sort largest -> smallest (so tightest bp ends up innermost)
         let mut sorted: Vec<&String> = bps.iter().collect();
         sorted.sort_by(|a, b| {
             let wa: u32 = cfg.breakpoints.iter().find(|(n, _)| n == *a)
@@ -469,65 +523,46 @@ fn wrap_all_queries(
         for bp in sorted {
             if let Some((_, w)) = cfg.breakpoints.iter().find(|(n, _)| n == bp) {
                 let mut s = String::with_capacity(20 + w.len());
-                s.push_str("@media (min-width: ");
-                s.push_str(w);
-                s.push(')');
+                s.push_str("@media (min-width: "); s.push_str(w); s.push(')');
                 wrappers.push(s);
             }
         }
     }
-
     for m in min_max_bps {
         let mut s = String::with_capacity(9 + m.len());
-        s.push_str("@media (");
-        s.push_str(m);
-        s.push(')');
+        s.push_str("@media ("); s.push_str(m); s.push(')');
         wrappers.push(s);
     }
     for p in pointer_queries {
         let mut s = String::with_capacity(9 + p.len());
-        s.push_str("@media (");
-        s.push_str(p);
-        s.push(')');
+        s.push_str("@media ("); s.push_str(p); s.push(')');
         wrappers.push(s);
     }
     for m in media {
         let mut s = String::with_capacity(9 + m.len());
-        s.push_str("@media (");
-        s.push_str(m);
-        s.push(')');
+        s.push_str("@media ("); s.push_str(m); s.push(')');
         wrappers.push(s);
     }
     for s in supports {
         let mut buf = String::with_capacity(11 + s.len());
-        buf.push_str("@supports (");
-        buf.push_str(s);
-        buf.push(')');
+        buf.push_str("@supports ("); buf.push_str(s); buf.push(')');
         wrappers.push(buf);
     }
 
-    // wrappers[0] = innermost, wrappers[last] = outermost
     let overhead: usize = wrappers.iter().map(|w| w.len() + 5).sum::<usize>() + wrappers.len();
     let mut out = String::with_capacity(rule.len() + overhead);
-    for w in wrappers.iter().rev() {
-        out.push_str(w);
-        out.push_str(" { ");
-    }
+    for w in wrappers.iter().rev() { out.push_str(w); out.push_str(" { "); }
     out.push_str(rule);
-    for _ in 0..wrappers.len() {
-        out.push_str(" }");
-    }
+    for _ in 0..wrappers.len() { out.push_str(" }"); }
     out
 }
 
 // ───────────────────────────────────────────────
-// Arbitrary utility (SANITIZED)
+// Arbitrary utility
 // ───────────────────────────────────────────────
 
 fn arbitrary_utility(key: &str, value: &str, negative: bool) -> Option<String> {
-    if !is_safe_property(key) || !is_safe_arbitrary(value) {
-        return None;
-    }
+    if !is_safe_property(key) || !is_safe_arbitrary(value) { return None; }
 
     let v: Cow<str> = if negative && !value.starts_with('-') {
         Cow::Owned(format!("-{}", value))
@@ -727,10 +762,7 @@ fn apply_opacity(decl: &str, alpha: f64) -> String {
 fn expand_nested_decls(decl: &str, selector: &str) -> String {
     if !decl.contains('&') {
         let mut s = String::with_capacity(selector.len() + decl.len() + 6);
-        s.push_str(selector);
-        s.push_str(" { ");
-        s.push_str(decl);
-        s.push_str("; }");
+        s.push_str(selector); s.push_str(" { "); s.push_str(decl); s.push_str("; }");
         return s;
     }
     let mut out = String::with_capacity(decl.len() + selector.len() * 2 + 32);
@@ -822,51 +854,91 @@ fn resolve_theme<'a>(value: &'a str, palette: &FxHashMap<String, String>) -> Cow
 }
 
 // ───────────────────────────────────────────────
-// Main build
+// Main build — Arc<str> for cheap cache hits
 // ───────────────────────────────────────────────
 
-pub fn build(cls: &str, inline: bool) -> Option<String> {
+pub fn build(cls: &str, inline: bool) -> Option<Arc<str>> {
     if cls.is_empty() { return None; }
 
     if !inline {
-        if let Ok(c) = BUILD_CACHE.read() {
-            if let Some(v) = c.get(cls) {
-                BUILD_HITS.fetch_add(1, Ordering::Relaxed);
-                return v.clone();
-            }
-        }
-    } else {
-        // Prefix once, reuse the borrowed slice for the key to avoid a second alloc
-        let mut key = String::with_capacity(cls.len() + 2);
-        key.push_str("i:");
-        key.push_str(cls);
-        if let Ok(c) = BUILD_CACHE.read() {
-            if let Some(v) = c.get(&key) {
-                BUILD_HITS.fetch_add(1, Ordering::Relaxed);
-                return v.clone();
-            }
+        if let Some(v) = BUILD_CACHE.get(cls) {
+            BUILD_HITS.fetch_add(1, Ordering::Relaxed);
+            return v.clone();
         }
         BUILD_MISSES.fetch_add(1, Ordering::Relaxed);
         let result = build_inner(cls, inline);
-        if let Ok(mut c) = BUILD_CACHE.write() {
-            if c.len() >= MAX_CACHE { c.clear(); }
-            c.insert(key, result.clone());
+        if BUILD_CACHE.len() >= MAX_CACHE { BUILD_CACHE.clear(); }
+        BUILD_CACHE.insert(cls.to_string(), result.clone());
+        result
+    } else {
+        let mut key = String::with_capacity(cls.len() + 2);
+        key.push_str("i:");
+        key.push_str(cls);
+        if let Some(v) = BUILD_CACHE.get(&key) {
+            BUILD_HITS.fetch_add(1, Ordering::Relaxed);
+            return v.clone();
         }
-        return result;
+        BUILD_MISSES.fetch_add(1, Ordering::Relaxed);
+        let result = build_inner(cls, inline);
+        if BUILD_CACHE.len() >= MAX_CACHE { BUILD_CACHE.clear(); }
+        BUILD_CACHE.insert(key, result.clone());
+        result
     }
-    BUILD_MISSES.fetch_add(1, Ordering::Relaxed);
-
-    let result = build_inner(cls, inline);
-
-    if let Ok(mut c) = BUILD_CACHE.write() {
-        if c.len() >= MAX_CACHE { c.clear(); }
-        c.insert(cls.to_string(), result.clone());
-    }
-    result
 }
 
-fn build_inner(cls: &str, inline: bool) -> Option<String> {
+#[inline]
+fn render_simple(cls: &str, decl: &str) -> Arc<str> {
+    let escaped = escape_class(cls);
+    let mut s = String::with_capacity(escaped.len() + decl.len() + 8);
+    s.push('.');
+    s.push_str(&escaped);
+    s.push_str(" { ");
+    s.push_str(decl);
+    s.push_str("; }");
+    Arc::from(s)
+}
+
+fn build_inner(cls: &str, inline: bool) -> Option<Arc<str>> {
     let (prefixes, raw_base) = split_prefixes(cls);
+
+    // ═══════════════ FAST PATH ═══════════════
+    // No variants, no `!important`, no arbitrary `[...]`
+    if prefixes.is_empty()
+        && !raw_base.starts_with('!')
+        && !raw_base.contains('[')
+    {
+        let base_neg = raw_base.starts_with('-');
+        let base: &str = if base_neg { &raw_base[1..] } else { raw_base.as_str() };
+
+        let utils = UTILS.load();
+
+        // Direct hit
+        if !base_neg {
+            if let Some(d) = utils.get(base) {
+                if inline { return Some(Arc::from(d.as_str())); }
+                return Some(render_simple(cls, d));
+            }
+        }
+
+        // Dynamic spacing (handles negation)
+        if let Some(d) = try_dynamic_spacing(base, base_neg) {
+            if inline { return Some(Arc::from(d)); }
+            return Some(render_simple(cls, &d));
+        }
+
+        // Negative of a static utility: `-space-x-4`, etc.
+        if base_neg {
+            if let Some(d) = utils.get(base) {
+                if let Some(neg) = apply_negative(d) {
+                    if inline { return Some(Arc::from(neg)); }
+                    return Some(render_simple(cls, &neg));
+                }
+            }
+        }
+
+        return None;
+    }
+    // ═══════════════ SLOW PATH ═══════════════
 
     let (base, arbitrary_opacity): (String, Option<f64>) = {
         if let Some(slash) = raw_base.rfind("/[") {
@@ -913,10 +985,7 @@ fn build_inner(cls: &str, inline: bool) -> Option<String> {
         (cq, named, rest)
     };
 
-    let cfg: Arc<GarurConfig> = match CONFIG.read() {
-        Ok(g) => Arc::clone(&g),
-        Err(_) => return None,
-    };
+    let cfg = CONFIG.load_full();
 
     let (bps, variants): (Vec<String>, Vec<String>) = {
         let mut b = Vec::with_capacity(4);
@@ -945,34 +1014,27 @@ fn build_inner(cls: &str, inline: bool) -> Option<String> {
         (s.to_string(), n, i)
     };
 
-    // ── Path 1: [prop:value] arbitrary property
+    // ── Path 1: [prop:value]
     if let Some(caps) = ARBITRARY_RE.captures(&base_stripped) {
         let prop = caps.get(1).unwrap().as_str().replace('_', "-");
         let raw_val = caps.get(2).unwrap().as_str().replace('_', " ");
 
-        if !is_safe_property(&prop) || !is_safe_arbitrary(&raw_val) {
-            return None;
-        }
+        if !is_safe_property(&prop) || !is_safe_arbitrary(&raw_val) { return None; }
 
-        let palette_snapshot = PALETTE.read().ok().map(|p| p.clone()).unwrap_or_default();
+        let palette_snapshot = PALETTE.load_full();
         let theme_resolved = resolve_theme(&raw_val, &palette_snapshot);
         let mut value = theme_resolved.into_owned();
 
-        if base_neg && !value.starts_with('-') {
-            value.insert(0, '-');
-        }
+        if base_neg && !value.starts_with('-') { value.insert(0, '-'); }
         let decl_buf = format!("{}:{}", prop, value);
         let d = apply_important(&decl_buf, base_imp, cfg.important);
 
-        if inline { return Some(d.into_owned()); }
+        if inline { return Some(Arc::from(d.as_ref())); }
         let escaped = escape_class(cls);
         let base_sel = format!(".{}", escaped);
         let sel = apply_variants(&base_sel, &parsed_variants, &cfg.dark_mode);
         let mut rule = String::with_capacity(sel.len() + d.len() + 6);
-        rule.push_str(&sel);
-        rule.push_str(" { ");
-        rule.push_str(&d);
-        rule.push_str("; }");
+        rule.push_str(&sel); rule.push_str(" { "); rule.push_str(&d); rule.push_str("; }");
 
         let mut rule = wrap_all_queries(
             &rule, &bps, &media_queries, &supports,
@@ -984,7 +1046,7 @@ fn build_inner(cls: &str, inline: bool) -> Option<String> {
         for name in named_containers.iter().rev() {
             rule = format!("@container {} {{ {} }}", name, rule);
         }
-        return Some(rule);
+        return Some(Arc::from(rule));
     }
 
     let token = parse(&base).ok()?;
@@ -992,21 +1054,18 @@ fn build_inner(cls: &str, inline: bool) -> Option<String> {
     // ── Path 2: arbitrary utility
     if base.contains('[') {
         let v = token.value.replace('_', " ");
-        let palette_snapshot = PALETTE.read().ok().map(|p| p.clone()).unwrap_or_default();
+        let palette_snapshot = PALETTE.load_full();
         let theme_resolved = resolve_theme(&v, &palette_snapshot);
         let v = theme_resolved.into_owned();
 
         if let Some(d) = arbitrary_utility(&token.key, &v, token.negative) {
             let d = apply_important(&d, token.important, cfg.important);
-            if inline { return Some(d.into_owned()); }
+            if inline { return Some(Arc::from(d.as_ref())); }
             let escaped = escape_class(cls);
             let base_sel = format!(".{}", escaped);
             let sel = apply_variants(&base_sel, &parsed_variants, &cfg.dark_mode);
             let mut rule = String::with_capacity(sel.len() + d.len() + 6);
-            rule.push_str(&sel);
-            rule.push_str(" { ");
-            rule.push_str(&d);
-            rule.push_str("; }");
+            rule.push_str(&sel); rule.push_str(" { "); rule.push_str(&d); rule.push_str("; }");
 
             let mut rule = wrap_all_queries(
                 &rule, &bps, &media_queries, &supports,
@@ -1018,7 +1077,7 @@ fn build_inner(cls: &str, inline: bool) -> Option<String> {
             for name in named_containers.iter().rev() {
                 rule = format!("@container {} {{ {} }}", name, rule);
             }
-            return Some(rule);
+            return Some(Arc::from(rule));
         }
     }
 
@@ -1026,7 +1085,7 @@ fn build_inner(cls: &str, inline: bool) -> Option<String> {
         matches!(v, Variant::PseudoEl("before") | Variant::PseudoEl("after"))
     });
 
-    let utils = UTILS.read().ok()?;
+    let utils = UTILS.load();
 
     let static_lookup: Option<String> = if token.negative {
         let base_positive = base.trim_start_matches('-');
@@ -1064,9 +1123,7 @@ fn build_inner(cls: &str, inline: bool) -> Option<String> {
 
     let decl_cow = apply_important(&decl, token.important, cfg.important);
 
-    if inline {
-        return Some(decl_cow.into_owned());
-    }
+    if inline { return Some(Arc::from(decl_cow.as_ref())); }
 
     let escaped = escape_class(cls);
     let base_sel = format!(".{}", escaped);
@@ -1076,10 +1133,7 @@ fn build_inner(cls: &str, inline: bool) -> Option<String> {
         expand_nested_decls(&decl_cow, &sel)
     } else {
         let mut s = String::with_capacity(sel.len() + decl_cow.len() + 6);
-        s.push_str(&sel);
-        s.push_str(" { ");
-        s.push_str(&decl_cow);
-        s.push_str("; }");
+        s.push_str(&sel); s.push_str(" { "); s.push_str(&decl_cow); s.push_str("; }");
         s
     };
 
@@ -1099,58 +1153,124 @@ fn build_inner(cls: &str, inline: bool) -> Option<String> {
         rule = format!("{}\n{}", kf, rule);
     }
 
-    Some(rule)
+    Some(Arc::from(rule))
 }
 
 // ───────────────────────────────────────────────
-// Dynamic spacing
+// Dynamic spacing — ordered by frequency
 // ───────────────────────────────────────────────
 
 fn try_dynamic_spacing(stripped: &str, neg: bool) -> Option<String> {
+        // ── Plain-numeric utilities (NO spacing multiplier) ──
+    // These use raw number, not calc(var(--spacing) * N)
+    const NUMERIC_MAP: &[(&str, &str)] = &[
+        ("z-",             "z-index:{0}"),
+        ("order-",         "order:{0}"),
+        ("opacity-",       "opacity:{0}"),
+        ("columns-",       "columns:{0}"),
+        ("grid-cols-",     "grid-template-columns:repeat({0}, minmax(0, 1fr))"),
+        ("grid-rows-",     "grid-template-rows:repeat({0}, minmax(0, 1fr))"),
+        ("col-span-",      "grid-column:span {0} / span {0}"),
+        ("row-span-",      "grid-row:span {0} / span {0}"),
+        ("col-start-",     "grid-column-start:{0}"),
+        ("col-end-",       "grid-column-end:{0}"),
+        ("row-start-",     "grid-row-start:{0}"),
+        ("row-end-",       "grid-row-end:{0}"),
+        ("duration-",      "transition-duration:{0}ms"),
+        ("delay-",         "transition-delay:{0}ms"),
+        ("stroke-",        "stroke-width:{0}"),
+        ("outline-offset-","outline-offset:{0}px"),
+        ("border-spacing-","border-spacing:{0}px"),
+    ];
+
+    for (prefix, template) in NUMERIC_MAP {
+        if let Some(rest) = stripped.strip_prefix(prefix) {
+            if rest.is_empty()
+                || rest.contains('/')
+                || rest.contains('%')
+                || rest.contains('[')
+            { continue; }
+            if let Ok(n) = rest.parse::<f64>() {
+                let n_used = if neg { -n } else { n };
+                let n_str: Cow<str> = if n_used.fract() == 0.0 {
+                    Cow::Owned(format!("{}", n_used as i64))
+                } else {
+                    Cow::Owned(format!("{}", n_used))
+                };
+                return Some(template.replace("{0}", &n_str));
+            }
+        }
+    }
+    // Common utilities first — most builds hit these
     const MAP: &[(&str, &str)] = &[
+        // Padding
+        ("p-",  "padding:{0}"),
         ("px-", "padding-left:{0};padding-right:{0}"),
         ("py-", "padding-top:{0};padding-bottom:{0}"),
         ("pt-", "padding-top:{0}"),
-        ("pr-", "padding-right:{0}"),
         ("pb-", "padding-bottom:{0}"),
         ("pl-", "padding-left:{0}"),
+        ("pr-", "padding-right:{0}"),
         ("ps-", "padding-inline-start:{0}"),
         ("pe-", "padding-inline-end:{0}"),
-        ("p-",  "padding:{0}"),
-
+        // Margin
+        ("m-",  "margin:{0}"),
         ("mx-", "margin-left:{0};margin-right:{0}"),
         ("my-", "margin-top:{0};margin-bottom:{0}"),
         ("mt-", "margin-top:{0}"),
-        ("mr-", "margin-right:{0}"),
         ("mb-", "margin-bottom:{0}"),
         ("ml-", "margin-left:{0}"),
+        ("mr-", "margin-right:{0}"),
         ("ms-", "margin-inline-start:{0}"),
         ("me-", "margin-inline-end:{0}"),
-        ("m-",  "margin:{0}"),
-
+        // Gap
+        ("gap-",   "gap:{0}"),
         ("gap-x-", "column-gap:{0}"),
         ("gap-y-", "row-gap:{0}"),
-        ("gap-",   "gap:{0}"),
-
+        // Sizing
+        ("w-",     "width:{0}"),
+        ("h-",     "height:{0}"),
+        ("size-",  "width:{0};height:{0}"),
         ("min-w-", "min-width:{0}"),
         ("min-h-", "min-height:{0}"),
         ("max-w-", "max-width:{0}"),
         ("max-h-", "max-height:{0}"),
-        ("size-",  "width:{0};height:{0}"),
-        ("w-",     "width:{0}"),
-        ("h-",     "height:{0}"),
         ("basis-", "flex-basis:{0}"),
-
-        ("inset-x-", "left:{0};right:{0}"),
-        ("inset-y-", "top:{0};bottom:{0}"),
-        ("inset-",   "inset:{0}"),
-        ("top-",     "top:{0}"),
-        ("right-",   "right:{0}"),
-        ("bottom-",  "bottom:{0}"),
-        ("left-",    "left:{0}"),
-        ("start-",   "inset-inline-start:{0}"),
-        ("end-",     "inset-inline-end:{0}"),
-
+        // Position
+        ("top-",    "top:{0}"),
+        ("right-",  "right:{0}"),
+        ("bottom-", "bottom:{0}"),
+        ("left-",   "left:{0}"),
+        ("inset-",  "inset:{0}"),
+        ("inset-x-","left:{0};right:{0}"),
+        ("inset-y-","top:{0};bottom:{0}"),
+        ("start-",  "inset-inline-start:{0}"),
+        ("end-",    "inset-inline-end:{0}"),
+        // Typography
+        ("leading-",   "line-height:{0}"),
+        ("indent-",    "text-indent:{0}"),
+        ("tracking-",  "letter-spacing:{0}"),
+        ("underline-offset-", "text-underline-offset:{0}"),
+        // Grid
+        ("grid-cols-", "grid-template-columns:repeat({0}, minmax(0, 1fr))"),
+        ("grid-rows-", "grid-template-rows:repeat({0}, minmax(0, 1fr))"),
+        ("col-span-",  "grid-column:span {0} / span {0}"),
+        ("row-span-",  "grid-row:span {0} / span {0}"),
+        ("col-start-", "grid-column-start:{0}"),
+        ("col-end-",   "grid-column-end:{0}"),
+        ("row-start-", "grid-row-start:{0}"),
+        ("row-end-",   "grid-row-end:{0}"),
+        // Misc
+        ("z-",             "z-index:{0}"),
+        ("order-",         "order:{0}"),
+        ("opacity-",       "opacity:calc({0} / 100)"),
+        ("duration-",      "transition-duration:{0}ms"),
+        ("delay-",         "transition-delay:{0}ms"),
+        ("stroke-",        "stroke-width:{0}"),
+        ("outline-offset-","outline-offset:{0}"),
+        ("columns-",       "columns:{0}"),
+        ("border-spacing-","border-spacing:{0}"),
+        // Scroll
         ("scroll-mx-", "scroll-margin-left:{0};scroll-margin-right:{0}"),
         ("scroll-my-", "scroll-margin-top:{0};scroll-margin-bottom:{0}"),
         ("scroll-mt-", "scroll-margin-top:{0}"),
@@ -1165,37 +1285,12 @@ fn try_dynamic_spacing(stripped: &str, neg: bool) -> Option<String> {
         ("scroll-pb-", "scroll-padding-bottom:{0}"),
         ("scroll-pl-", "scroll-padding-left:{0}"),
         ("scroll-p-",  "scroll-padding:{0}"),
-
-        ("border-spacing-", "border-spacing:{0}"),
-        ("outline-offset-", "outline-offset:{0}"),
-        ("indent-", "text-indent:{0}"),
-        ("leading-", "line-height:{0}"),
-        ("underline-offset-", "text-underline-offset:{0}"),
-        ("columns-", "columns:{0}"),
-
-        ("z-",       "z-index:{0}"),
-        ("order-",   "order:{0}"),
-        ("opacity-", "opacity:calc({0} / 100)"),
-        ("duration-", "transition-duration:{0}ms"),
-        ("delay-",    "transition-delay:{0}ms"),
-        ("stroke-",   "stroke-width:{0}"),
-
-        ("grid-cols-", "grid-template-columns:repeat({0}, minmax(0, 1fr))"),
-        ("grid-rows-", "grid-template-rows:repeat({0}, minmax(0, 1fr))"),
-        ("col-span-", "grid-column:span {0} / span {0}"),
-        ("row-span-", "grid-row:span {0} / span {0}"),
-        ("col-start-", "grid-column-start:{0}"),
-        ("col-end-",   "grid-column-end:{0}"),
-        ("row-start-", "grid-row-start:{0}"),
-        ("row-end-",   "grid-row-end:{0}"),
     ];
 
     for (prefix, template) in MAP {
         if let Some(rest) = stripped.strip_prefix(prefix) {
             if rest.is_empty() { continue; }
-            if rest.contains('/') || rest.contains('%') || rest.contains('[') {
-                continue;
-            }
+            if rest.contains('/') || rest.contains('%') || rest.contains('[') { continue; }
             if let Ok(n) = rest.parse::<f64>() {
                 let n_used = if neg { -n } else { n };
                 let n_str: Cow<str> = if n_used.fract() == 0.0 {
@@ -1260,18 +1355,14 @@ pub fn extract(content: &str) -> Vec<String> {
     for cap in CLASS_RE.captures_iter(content) {
         if let Some(s) = (1..=5).find_map(|i| cap.get(i)).map(|m| m.as_str()) {
             for t in s.split_ascii_whitespace() {
-                if seen.insert(t.to_string()) {
-                    out.push(t.to_string());
-                }
+                if seen.insert(t.to_string()) { out.push(t.to_string()); }
             }
         }
     }
     for cap in TMPL_RE.captures_iter(content) {
         let cleaned = INTERP_RE.replace_all(&cap[1], " ");
         for t in cleaned.split_ascii_whitespace() {
-            if seen.insert(t.to_string()) {
-                out.push(t.to_string());
-            }
+            if seen.insert(t.to_string()) { out.push(t.to_string()); }
         }
     }
     out
@@ -1301,8 +1392,7 @@ pub fn minify(css: &str) -> String {
             let last_ok = !matches!(last, 0 | b'{' | b';' | b':' | b' ');
             let next_ok = !matches!(n, b' ' | b'}' | b';' | b':' | 0);
             if last_ok && next_ok { out.push(b' '); last = b' '; }
-            i += 1;
-            continue;
+            i += 1; continue;
         }
         out.push(c);
         last = c;
@@ -1311,6 +1401,45 @@ pub fn minify(css: &str) -> String {
     let s = unsafe { String::from_utf8_unchecked(out) };
     let trimmed = s.trim();
     if trimmed.len() == s.len() { s } else { trimmed.to_string() }
+}
+
+// ───────────────────────────────────────────────
+// Finalize cache — lightningcss output keyed by input hash
+// ───────────────────────────────────────────────
+
+static FINALIZE_CACHE: Lazy<DashMap<u64, Arc<str>, FxBuildHasher>> =
+    Lazy::new(|| DashMap::with_capacity_and_hasher(64, FxBuildHasher::default()));
+
+pub fn finalize_cached(css: &str, minify: bool, targets: &[String]) -> Arc<str> {
+    use xxhash_rust::xxh3::xxh3_64;
+
+    let mut key_buf: Vec<u8> = Vec::with_capacity(css.len() + 16);
+    key_buf.extend_from_slice(css.as_bytes());
+    key_buf.push(if minify { 1 } else { 0 });
+    for t in targets {
+        key_buf.push(0xFF);
+        key_buf.extend_from_slice(t.as_bytes());
+    }
+    let key = xxh3_64(&key_buf);
+
+    if let Some(v) = FINALIZE_CACHE.get(&key) {
+        return Arc::clone(&v);
+    }
+
+    let result: Arc<str> = Arc::from(finalize(css, minify, targets));
+    if FINALIZE_CACHE.len() >= 256 {
+        FINALIZE_CACHE.clear();
+    }
+    FINALIZE_CACHE.insert(key, Arc::clone(&result));
+    result
+}
+
+pub fn clear_finalize_cache() {
+    FINALIZE_CACHE.clear();
+}
+
+pub fn finalize_cache_entries() -> usize {
+    FINALIZE_CACHE.len()
 }
 
 pub fn finalize(css: &str, minify: bool, targets: &[String]) -> String {
@@ -1339,11 +1468,10 @@ pub fn finalize(css: &str, minify: bool, targets: &[String]) -> String {
 }
 
 pub fn current_targets() -> Vec<String> {
-    CONFIG.read().map(|c| c.targets.clone()).unwrap_or_default()
+    CONFIG.load().targets.clone()
 }
 
 pub fn warmup(classes: &[String]) {
-    for c in classes {
-        let _ = build(c, false);
-    }
+    use rayon::prelude::*;
+    classes.par_iter().for_each(|c| { let _ = build(c, false); });
 }

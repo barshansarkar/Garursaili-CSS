@@ -37,3 +37,8 @@ tmp.*
 # ── Env ──
 .env
 .env.local
+gen-bench.mjs
+test-full.html
+test-*.html
+test-*.mjs
+bench-large.html

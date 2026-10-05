@@ -6,12 +6,12 @@ use crate::css_input;
 use crate::engine;
 use crate::preflight;
 use globset::GlobSetBuilder;
-use memmap2::Mmap;
+// use memmap2::Mmap;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::fs::File;
+// use std::fs::File;
 use walkdir::WalkDir;
 
 #[derive(Clone, Copy)]
@@ -63,18 +63,18 @@ pub fn run_with_options(files: &[String], config_json: &str, opts: SscOptions) -
     }
 
     // Parallel extract classes
-    let all_classes: Vec<String> = markup_files
+    // ⚡ Parallel file-hash-cached extraction
+    let class_sets: Vec<std::sync::Arc<Vec<String>>> = markup_files
         .par_iter()
-        .filter_map(|p| {
-            let file = File::open(p).ok()?;
-            let meta = file.metadata().ok()?;
-            if meta.len() > 5 * 1024 * 1024 { return None; }
-            let mmap = unsafe { Mmap::map(&file).ok()? };
-            let content = std::str::from_utf8(&mmap).ok()?;
-            Some(engine::extract(content))
-        })
-        .flatten()
+        .filter_map(|p| engine::extract_cached(p))
         .collect();
+
+    let mut all_classes: Vec<String> = Vec::with_capacity(
+        class_sets.iter().map(|s| s.len()).sum()
+    );
+    for set in class_sets {
+        all_classes.extend_from_slice(&set);
+    }
 
     // Dedup via borrow set (avoids one allocation per duplicate)
     let mut unique: Vec<String> = {
@@ -87,10 +87,10 @@ pub fn run_with_options(files: &[String], config_json: &str, opts: SscOptions) -
     };
     unique.sort();
 
-    let rules: Vec<(String, String)> = unique
-        .par_iter()
-        .filter_map(|cls| engine::build(cls, false).map(|r| (cls.clone(), r)))
-        .collect();
+let rules: Vec<(String, std::sync::Arc<str>)> = unique
+    .par_iter()
+    .filter_map(|cls| engine::build(cls, false).map(|r| (cls.clone(), r)))
+    .collect();
 
     let mut base_blocks: Vec<String> = Vec::with_capacity(rules.len());
     let mut keyframes_seen: rustc_hash::FxHashSet<String> = rustc_hash::FxHashSet::default();
@@ -99,7 +99,7 @@ pub fn run_with_options(files: &[String], config_json: &str, opts: SscOptions) -
     let mut order: Vec<String> = Vec::with_capacity(rules.len());
 
     for (_, rule) in &rules {
-        for chunk in split_top_level(rule) {
+        for chunk in split_top_level(rule.as_ref())  {
             let trimmed = chunk.trim();
             if trimmed.is_empty() { continue; }
 
@@ -186,7 +186,12 @@ pub fn run_with_options(files: &[String], config_json: &str, opts: SscOptions) -
     for m in media_keys {
         if let Some(blocks) = media_blocks.get(&m) {
             if !blocks.is_empty() {
-                parts.push(format!("@media ({}) {{\n{}\n}}", m, blocks.join("\n\n")));
+                let at_rule = if m.starts_with("container") {
+                    format!("@{}", m)
+                } else {
+                    format!("@media ({})", m)
+                };
+                parts.push(format!("{} {{\n{}\n}}", at_rule, blocks.join("\n\n")));
             }
         }
     }
@@ -200,7 +205,9 @@ pub fn run_with_options(files: &[String], config_json: &str, opts: SscOptions) -
 
     if opts.vendor_prefix {
         let targets = engine::current_targets();
-        engine::finalize(&css, opts.minify, &targets)
+        engine::finalize_cached(&css, opts.minify, &targets)
+            .as_ref()
+            .to_string()
     } else if opts.minify {
         engine::minify(&css)
     } else {
@@ -275,6 +282,7 @@ fn split_top_level(rule: &str) -> Vec<String> {
 }
 
 fn extract_media(rule: &str) -> (Option<String>, String) {
+    // ── @media ──
     if rule.starts_with("@media") {
         if let Some(open) = rule.find('{') {
             let raw = rule[6..open].trim();
@@ -285,9 +293,45 @@ fn extract_media(rule: &str) -> (Option<String>, String) {
             return (Some(media), inner);
         }
     }
+
+    // ── @container ──
+    if rule.starts_with("@container") {
+        if let Some(open) = rule.find('{') {
+            let header = rule[10..open].trim();  // after "@container"
+            let inner  = rule[open + 1..].trim_end_matches('}').trim().to_string();
+
+            // Case A: NESTED — "@container NAME { @container (query) { body } }"
+            if !header.starts_with('(') && inner.starts_with("@container") {
+                if let Some(inner_open) = inner.find('{') {
+                    let inner_header = inner[10..inner_open].trim();
+                    let body = inner[inner_open + 1..].trim_end_matches('}').trim();
+                    if inner_header.starts_with('(') && inner_header.ends_with(')') {
+                        let cond = &inner_header[1..inner_header.len() - 1];
+                        return (Some(format!("container {} ({})", header, cond)), body.to_string());
+                    }
+                }
+            }
+
+            // Case B: NAMED + CONDITION — "@container NAME (query) { body }"
+            if let Some(space) = header.find(' ') {
+                let name = &header[..space];
+                let rest = header[space..].trim();
+                if rest.starts_with('(') && rest.ends_with(')') {
+                    let cond = &rest[1..rest.len() - 1];
+                    return (Some(format!("container {} ({})", name, cond)), inner);
+                }
+            }
+
+            // Case C: CONDITION-ONLY — "@container (query) { body }"
+            if header.starts_with('(') && header.ends_with(')') {
+                let cond = &header[1..header.len() - 1];
+                return (Some(format!("container ({})", cond)), inner);
+            }
+        }
+    }
+
     (None, rule.to_string())
 }
-
 fn split_selector_decl(rule: &str) -> (String, String) {
     if let Some(open) = rule.find('{') {
         if let Some(close) = rule.rfind('}') {

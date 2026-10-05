@@ -17,13 +17,9 @@ mod preflight;
 mod sanitize;
 mod ssc;
 mod utilities;
-mod utilities_extended; 
-mod utilities_v4; 
+mod utilities_extended;
+mod utilities_v4;
 mod variants;
-
-// ───────────────────────────────────────────────
-// Types
-// ───────────────────────────────────────────────
 
 #[napi(object)]
 #[derive(Clone)]
@@ -48,10 +44,6 @@ pub struct SscOpts {
     pub vendor_prefix: Option<bool>,
 }
 
-// ───────────────────────────────────────────────
-// Config
-// ───────────────────────────────────────────────
-
 #[napi]
 pub fn init_config(config_json: String) -> Result<()> {
     engine::init_config(&config_json).map_err(Error::from_reason)
@@ -61,10 +53,6 @@ pub fn init_config(config_json: String) -> Result<()> {
 pub fn init_handler(palette_json: String) -> Result<()> {
     engine::init_handler(&palette_json).map_err(Error::from_reason)
 }
-
-// ───────────────────────────────────────────────
-// Parser / Lexer
-// ───────────────────────────────────────────────
 
 #[napi]
 pub fn parse(token: String) -> Result<ParsedToken> {
@@ -99,27 +87,32 @@ pub fn lex(class_string: String) -> Vec<String> { engine::lex(&class_string) }
 #[napi]
 pub fn clear_parse_cache() { engine::clear_parse_cache(); }
 
-// ───────────────────────────────────────────────
-// Builder
-// ───────────────────────────────────────────────
-
 #[napi]
 pub fn build(cls: String, inline: Option<bool>) -> Option<String> {
-    engine::build(&cls, inline.unwrap_or(false))
+    engine::build(&cls, inline.unwrap_or(false)).map(|s| s.as_ref().to_string())
 }
 
 #[napi]
 pub fn build_batch(classes: Vec<String>) -> Vec<Option<String>> {
     use rayon::prelude::*;
-    classes.par_iter().map(|c| engine::build(c, false)).collect()
+    classes.par_iter()
+        .map(|c| engine::build(c, false).map(|s| s.as_ref().to_string()))
+        .collect()
 }
 
 #[napi]
 pub fn clear_cache() { engine::clear_cache(); }
+#[napi]
+pub fn clear_file_cache() { engine::clear_file_cache(); }
 
-// ───────────────────────────────────────────────
-// Extractor / Scanner
-// ───────────────────────────────────────────────
+#[napi]
+pub fn file_cache_stats() -> String {
+    let (files, classes) = engine::file_cache_stats();
+    serde_json::to_string(&serde_json::json!({
+        "files":   files,
+        "classes": classes,
+    })).unwrap_or_else(|_| "{}".into())
+}
 
 #[napi]
 pub fn extract_classes(content: String) -> Vec<String> { engine::extract(&content) }
@@ -152,10 +145,6 @@ pub fn find_files(cwd: String, include: Vec<String>, ignore: Vec<String>) -> Vec
     ssc::find_files(&cwd, &include, &ignore)
 }
 
-// ───────────────────────────────────────────────
-// Full SSC build
-// ───────────────────────────────────────────────
-
 #[napi]
 pub fn run_ssc(files: Vec<String>, config_json: String) -> String {
     ssc::run(&files, &config_json)
@@ -176,10 +165,6 @@ pub fn run_ssc_with_options(
     ssc::run_with_options(&files, &config_json, ssc_opts)
 }
 
-// ───────────────────────────────────────────────
-// Preflight access
-// ───────────────────────────────────────────────
-
 #[napi]
 pub fn get_preflight() -> String { preflight::preflight().to_string() }
 
@@ -189,22 +174,26 @@ pub fn get_layer_decl() -> String { preflight::layer().to_string() }
 #[napi]
 pub fn get_property_decls() -> String { preflight::properties().to_string() }
 
-// ───────────────────────────────────────────────
-// Minify / Finalize
-// ───────────────────────────────────────────────
-
 #[napi]
 pub fn minify_css(css: String) -> String { engine::minify(&css) }
 
 #[napi]
 pub fn finalize_css(css: String, minify: Option<bool>) -> String {
     let targets = engine::current_targets();
-    engine::finalize(&css, minify.unwrap_or(false), &targets)
+    engine::finalize_cached(&css, minify.unwrap_or(false), &targets)
+        .as_ref()
+        .to_string()
 }
 
-// ───────────────────────────────────────────────
-// Hash
-// ───────────────────────────────────────────────
+#[napi]
+pub fn clear_finalize_cache() {
+    engine::clear_finalize_cache();
+}
+
+#[napi]
+pub fn finalize_cache_entries() -> u32 {
+    engine::finalize_cache_entries() as u32
+}
 
 #[napi]
 pub fn hash_string(s: String) -> String {
@@ -218,10 +207,6 @@ pub fn hash_file(path: String) -> Result<String> {
     let bytes = std::fs::read(&path).map_err(|e| Error::from_reason(e.to_string()))?;
     Ok(format!("{:016x}", xxh3_64(&bytes)))
 }
-
-// ───────────────────────────────────────────────
-// Cache (bincode)
-// ───────────────────────────────────────────────
 
 #[napi]
 pub fn cache_load(path: String) -> Result<String> {
@@ -246,10 +231,6 @@ pub fn cache_stats() -> String {
 #[napi]
 pub fn reset_cache_stats() { engine::reset_cache_stats(); }
 
-// ───────────────────────────────────────────────
-// Version / Warmup
-// ───────────────────────────────────────────────
-
 #[napi]
 pub fn version() -> String { env!("CARGO_PKG_VERSION").to_string() }
 
@@ -258,10 +239,6 @@ pub fn warmup_classes(classes: Vec<String>) { engine::warmup(&classes); }
 
 #[napi]
 pub fn has_utility(cls: String) -> bool { engine::build(&cls, false).is_some() }
-
-// ───────────────────────────────────────────────
-// @apply / @theme
-// ───────────────────────────────────────────────
 
 #[napi]
 pub fn process_css_input(css: String) -> Result<String> {
@@ -293,10 +270,6 @@ pub fn get_theme_tokens(css: String) -> String {
     .unwrap_or_else(|_| "{}".into())
 }
 
-// ───────────────────────────────────────────────
-// Plugin registry
-// ───────────────────────────────────────────────
-
 #[napi]
 pub fn register_plugin_utility(name: String, decls: String) {
     plugin::register_utility(name, decls);
@@ -318,9 +291,7 @@ pub fn list_plugin_variants() -> String {
 }
 
 #[napi]
-pub fn clear_plugins() {
-    plugin::clear_all();
-}
+pub fn clear_plugins() { plugin::clear_all(); }
 
 #[napi]
 pub fn export_cache() -> String {
@@ -336,10 +307,7 @@ pub fn export_cache() -> String {
 pub fn import_cache(data: String) -> bool {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     if data.is_empty() { return false; }
-    let bytes = match STANDARD.decode(&data) {
-        Ok(b) => b,
-        Err(_) => return false,
-    };
+    let bytes = match STANDARD.decode(&data) { Ok(b) => b, Err(_) => return false };
     match bincode::deserialize::<engine::CacheSnapshot>(&bytes) {
         Ok(snap) => engine::import_cache_snapshot(snap),
         Err(_) => false,

@@ -37,8 +37,10 @@ pub const PROPERTY_DECLS: &str = r#"@property --garur-ring-width { syntax: "<len
 @property --garur-gradient-via { syntax: "<color>"; inherits: false; initial-value: transparent; }
 @property --garur-gradient-to { syntax: "<color>"; inherits: false; initial-value: transparent; }
 @property --garur-scroll-snap-strictness { syntax: "*"; inherits: false; }
+@property --garur-ring-offset-color { syntax: "<color>"; inherits: false; initial-value: #fff; }
+@property --garur-text-shadow-color { syntax: "<color>"; inherits: false; initial-value: rgb(0 0 0 / 0.1); }
+@property --garur-gradient-interpolation { syntax: "*"; inherits: false; }
 "#;
-
 /// Full Tailwind v4-equivalent preflight reset.
 pub const PREFLIGHT: &str = r#"*, ::after, ::before, ::backdrop, ::file-selector-button {
   box-sizing: border-box;
@@ -188,12 +190,7 @@ button, input:where([type="button"], [type="reset"], [type="submit"]), ::file-se
 ::-webkit-search-results-decoration { -webkit-appearance: none; }
 
 [hidden]:where(:not([hidden="until-found"])) { display: none !important; }
-// Add to PROPERTY_DECLS (inside the raw string):
-@property --garur-ring-offset-color { syntax: "<color>"; inherits: false; initial-value: #fff; }
-@property --garur-text-shadow-color { syntax: "<color>"; inherits: false; initial-value: rgb(0 0 0 / 0.1); }
-@property --garur-gradient-interpolation { syntax: "*"; inherits: false; }
 "#;
-
 #[inline]
 pub fn layer() -> &'static str { LAYER_DECL }
 

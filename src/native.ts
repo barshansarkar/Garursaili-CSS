@@ -444,7 +444,24 @@ export function exportCache(): string {
     return "";
   }
 }
+export function clearFileCache(): void {
+  if (native && typeof (native as any).clearFileCache === "function") {
+    try { (native as any).clearFileCache(); } catch { /* */ }
+  }
+}
 
+export function clearFinalizeCache(): void {
+  if (native && typeof (native as any).clearFinalizeCache === "function") {
+    try { (native as any).clearFinalizeCache(); } catch { /* */ }
+  }
+}
+
+export function finalizeCacheEntries(): number {
+  if (native && typeof (native as any).finalizeCacheEntries === "function") {
+    try { return (native as any).finalizeCacheEntries(); } catch { /* */ }
+  }
+  return 0;
+}
 export function importCache(data: string): boolean {
   try {
     return (native as any).importCache?.(data) ?? false;
