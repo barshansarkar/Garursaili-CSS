@@ -165,14 +165,80 @@ pub fn run_ssc_with_options(
     ssc::run_with_options(&files, &config_json, ssc_opts)
 }
 
-#[napi]
-pub fn get_preflight() -> String { preflight::preflight().to_string() }
+// ═══════════════════════════════════════════════════════════════════
+// Preflight — backward compatible + configurable API
+// ═══════════════════════════════════════════════════════════════════
 
-#[napi]
-pub fn get_layer_decl() -> String { preflight::layer().to_string() }
+#[napi(object)]
+pub struct NapiPreflightOpts {
+    pub reset: Option<bool>,
+    pub typography: Option<bool>,
+    pub forms: Option<bool>,
+    pub a11y: Option<bool>,
+    pub modern: Option<bool>,
+    pub print: Option<bool>,
+    pub dark_auto: Option<bool>,
+    pub scrollbar_gutter: Option<bool>,
+}
 
+/// Default preflight (backward compatible — same as before).
 #[napi]
-pub fn get_property_decls() -> String { preflight::properties().to_string() }
+pub fn get_preflight() -> String {
+    preflight::preflight()
+}
+
+/// Layer order declaration.
+#[napi]
+pub fn get_layer_decl() -> String {
+    preflight::layer().to_string()
+}
+
+/// `@property` registrations.
+#[napi]
+pub fn get_property_decls() -> String {
+    preflight::properties().to_string()
+}
+
+/// Configurable preflight — pass options to toggle sections.
+///
+/// ```ts
+/// getPreflightConfigured({ print: true, a11y: true })
+/// ```
+#[napi]
+pub fn get_preflight_configured(opts: Option<NapiPreflightOpts>) -> String {
+    use preflight::{PreflightOptions, build_preflight};
+
+    let d = PreflightOptions::default();
+    let o = opts.unwrap_or(NapiPreflightOpts {
+        reset: None,
+        typography: None,
+        forms: None,
+        a11y: None,
+        modern: None,
+        print: None,
+        dark_auto: None,
+        scrollbar_gutter: None,
+    });
+
+    let effective = PreflightOptions {
+        reset:            o.reset.unwrap_or(d.reset),
+        typography:       o.typography.unwrap_or(d.typography),
+        forms:            o.forms.unwrap_or(d.forms),
+        a11y:             o.a11y.unwrap_or(d.a11y),
+        modern:           o.modern.unwrap_or(d.modern),
+        print:            o.print.unwrap_or(d.print),
+        dark_auto:        o.dark_auto.unwrap_or(d.dark_auto),
+        scrollbar_gutter: o.scrollbar_gutter.unwrap_or(d.scrollbar_gutter),
+    };
+
+    build_preflight(effective).as_ref().to_string()
+}
+
+/// Clear preflight cache (call after config change).
+#[napi]
+pub fn clear_preflight_cache() {
+    preflight::clear_cache();
+}
 
 #[napi]
 pub fn minify_css(css: String) -> String { engine::minify(&css) }

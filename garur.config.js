@@ -1,16 +1,35 @@
-// GarurSaili-CSS Configuration
+
+// GarurSaili-CSS — birun docs theme
 export default {
   breakpoints: {
-    sm: '640px',
-    md: '768px',
-    lg: '1024px',
-    xl: '1280px',
-    '2xl': '1536px'
+    sm: "640px",
+    md: "768px",
+    lg: "1024px",
+    xl: "1280px",
+    "2xl": "1536px",
   },
-  darkMode: 'class', // or 'media'
+  darkMode: "class",
   important: false,
   palette: {
-    primary: { 500: '#3b82f6', 600: '#2563eb' },
-    gray: { 50: '#f9fafb', 500: '#6b7280', 900: '#111827' }
-  }
+    ink:       "#14100d",
+    bg:        "#1c1814",
+    bg2:       "#221c17",
+    surface:   "#2a231d",
+    surface2:  "#332a22",
+    border:    "#3d332a",
+    border2:   "#514438",
+    cream:     "#ece3d4",
+    parchment: "#d9cdb9",
+    sand:      "#a89785",
+    stone:     "#7a6b5d",
+    ember:     "#5a4d42",
+    rust:      "#c25a3c",
+    copper:    "#d97742",
+    amber:     "#d4a35c",
+    gold:      "#e5c07b",
+    sage:      "#8ba368",
+    olive:     "#6b7a4a",
+    wine:      "#9c4a44",
+    rust2:     "#a8492f",
+  },
 };
