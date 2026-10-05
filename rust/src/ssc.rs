@@ -178,7 +178,7 @@ let rules: Vec<(String, std::sync::Arc<str>)> = unique
     let mut parts: Vec<String> = Vec::with_capacity(8 + media_blocks.len());
     parts.push(preflight::layer().to_string());
     parts.push(preflight::properties().to_string());
-    if opts.preflight { parts.push(preflight::preflight().to_string()); }
+    if opts.preflight { parts.push(preflight::preflight()); }
     if !base_blocks.is_empty() { parts.push(base_blocks.join("\n\n")); }
 
     let mut media_keys: Vec<String> = media_blocks.keys().cloned().collect();

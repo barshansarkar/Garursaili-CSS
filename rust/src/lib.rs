@@ -179,6 +179,11 @@ pub struct NapiPreflightOpts {
     pub print: Option<bool>,
     pub dark_auto: Option<bool>,
     pub scrollbar_gutter: Option<bool>,
+    pub runtime_theme: Option<bool>,
+    pub perf_animation: Option<bool>,
+    pub reduced_data: Option<bool>,
+    pub reduced_transparency: Option<bool>,
+    pub auto_dark_controls: Option<bool>,
 }
 
 /// Default preflight (backward compatible — same as before).
@@ -210,25 +215,27 @@ pub fn get_preflight_configured(opts: Option<NapiPreflightOpts>) -> String {
 
     let d = PreflightOptions::default();
     let o = opts.unwrap_or(NapiPreflightOpts {
-        reset: None,
-        typography: None,
-        forms: None,
-        a11y: None,
-        modern: None,
-        print: None,
-        dark_auto: None,
-        scrollbar_gutter: None,
+        reset: None, typography: None, forms: None, a11y: None,
+        modern: None, print: None, dark_auto: None, scrollbar_gutter: None,
+        runtime_theme: None, perf_animation: None,
+        reduced_data: None, reduced_transparency: None,
+        auto_dark_controls: None,
     });
 
     let effective = PreflightOptions {
-        reset:            o.reset.unwrap_or(d.reset),
-        typography:       o.typography.unwrap_or(d.typography),
-        forms:            o.forms.unwrap_or(d.forms),
-        a11y:             o.a11y.unwrap_or(d.a11y),
-        modern:           o.modern.unwrap_or(d.modern),
-        print:            o.print.unwrap_or(d.print),
-        dark_auto:        o.dark_auto.unwrap_or(d.dark_auto),
-        scrollbar_gutter: o.scrollbar_gutter.unwrap_or(d.scrollbar_gutter),
+        reset:                o.reset.unwrap_or(d.reset),
+        typography:           o.typography.unwrap_or(d.typography),
+        forms:                o.forms.unwrap_or(d.forms),
+        a11y:                 o.a11y.unwrap_or(d.a11y),
+        modern:               o.modern.unwrap_or(d.modern),
+        print:                o.print.unwrap_or(d.print),
+        dark_auto:            o.dark_auto.unwrap_or(d.dark_auto),
+        scrollbar_gutter:     o.scrollbar_gutter.unwrap_or(d.scrollbar_gutter),
+        runtime_theme:        o.runtime_theme.unwrap_or(d.runtime_theme),
+        perf_animation:       o.perf_animation.unwrap_or(d.perf_animation),
+        reduced_data:         o.reduced_data.unwrap_or(d.reduced_data),
+        reduced_transparency: o.reduced_transparency.unwrap_or(d.reduced_transparency),
+        auto_dark_controls:   o.auto_dark_controls.unwrap_or(d.auto_dark_controls),
     };
 
     build_preflight(effective).as_ref().to_string()

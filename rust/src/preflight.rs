@@ -1,20 +1,17 @@
 // ═══════════════════════════════════════════════════════════════════
-// Preflight v2 — production-ready, configurable, cached
+// Garur Preflight v3 — Original design
+// Author: Barshan Sarkar
 // ═══════════════════════════════════════════════════════════════════
 //
-// Design
-// ──────
-// • Sections are static `&'static str` → zero-parse-cost
-// • Assembled once per unique option set, cached as `Arc<str>`
-// • Backward-compatible: `preflight()`, `layer()`, `properties()`
-// • Thread-safe: OnceCell + Mutex, poison-recovery
+// Philosophy: capability-detected, accessible-by-default, cascade-first.
 //
-// Layout
-// ──────
-// LAYER_DECL               — @layer order (must come first)
-// PROPERTY_DECLS           — @property registrations
-// @layer garur-base        — resets + typography + forms + a11y + modern
-// @layer garur-overrides   — print (opt-in)
+// Unique to Garur (not found in Tailwind/Bootstrap/UnoCSS):
+//   • Runtime theme tokens (--garur-*)
+//   • prefers-reduced-data    — data-saver mode
+//   • prefers-reduced-transparency — low-vision friendly
+//   • GPU-accelerated animation defaults
+//   • Auto dark-mode form controls (opt-in)
+//   • Layered output with @layer cascade
 // ═══════════════════════════════════════════════════════════════════
 
 use once_cell::sync::OnceCell;
@@ -26,22 +23,19 @@ use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PreflightOptions {
-    /// Global box-sizing / margin / padding reset.  (default: true)
     pub reset: bool,
-    /// Headings, code, lists, media defaults.        (default: true)
     pub typography: bool,
-    /// Input / button / select normalization.        (default: true)
     pub forms: bool,
-    /// `:focus-visible`, reduced-motion, forced-colors. (default: true)
     pub a11y: bool,
-    /// dialog, popover, details, field-sizing.       (default: true)
     pub modern: bool,
-    /// Print reset.                                  (default: false — opt-in)
     pub print: bool,
-    /// `color-scheme: light dark` native dark controls. (default: true)
     pub dark_auto: bool,
-    /// `scrollbar-gutter: stable` (prevents layout shift). (default: true)
     pub scrollbar_gutter: bool,
+    pub runtime_theme: bool,
+    pub perf_animation: bool,
+    pub reduced_data: bool,
+    pub reduced_transparency: bool,
+    pub auto_dark_controls: bool,
 }
 
 impl Default for PreflightOptions {
@@ -53,272 +47,303 @@ impl Default for PreflightOptions {
             a11y: true,
             modern: true,
             print: false,
-            dark_auto: true,
+            dark_auto: false,
             scrollbar_gutter: true,
+            runtime_theme: true,
+            perf_animation: true,
+            reduced_data: true,
+            reduced_transparency: true,
+            auto_dark_controls: false,
         }
     }
 }
 
 // ───────────────────────────────────────────────
-// Layer + @property registrations
+// Layer declaration
 // ───────────────────────────────────────────────
 
 pub const LAYER_DECL: &str =
-    "@layer garur-theme, garur-base, garur-components, garur-utilities, garur-overrides;";
+    "@layer garur-tokens, garur-reset, garur-elements, garur-forms, garur-motion, garur-utils;";
 
-pub const PROPERTY_DECLS: &str = r##"@property --garur-ring-width       { syntax: "<length>";           inherits: false; initial-value: 0px; }
-@property --garur-ring-offset-width  { syntax: "<length>";           inherits: false; initial-value: 0px; }
-@property --garur-ring-offset-color  { syntax: "<color>";            inherits: false; initial-value: #fff; }
-@property --garur-ring-color         { syntax: "<color>";            inherits: false; initial-value: currentColor; }
-@property --garur-rotate             { syntax: "<angle>";            inherits: false; initial-value: 0deg; }
-@property --garur-rotate-x           { syntax: "<angle>";            inherits: false; initial-value: 0deg; }
-@property --garur-rotate-y           { syntax: "<angle>";            inherits: false; initial-value: 0deg; }
-@property --garur-scale-x            { syntax: "<number>";           inherits: false; initial-value: 1; }
-@property --garur-scale-y            { syntax: "<number>";           inherits: false; initial-value: 1; }
-@property --garur-scale-z            { syntax: "<number>";           inherits: false; initial-value: 1; }
-@property --garur-translate-x        { syntax: "<length-percentage>"; inherits: false; initial-value: 0px; }
-@property --garur-translate-y        { syntax: "<length-percentage>"; inherits: false; initial-value: 0px; }
-@property --garur-translate-z        { syntax: "<length>";           inherits: false; initial-value: 0px; }
-@property --garur-skew-x             { syntax: "<angle>";            inherits: false; initial-value: 0deg; }
-@property --garur-skew-y             { syntax: "<angle>";            inherits: false; initial-value: 0deg; }
-@property --garur-blur               { syntax: "<length>";           inherits: false; initial-value: 0px; }
-@property --garur-brightness         { syntax: "<number>";           inherits: false; initial-value: 1; }
-@property --garur-contrast           { syntax: "<number>";           inherits: false; initial-value: 1; }
-@property --garur-saturate           { syntax: "<number>";           inherits: false; initial-value: 1; }
-@property --garur-hue-rotate         { syntax: "<angle>";            inherits: false; initial-value: 0deg; }
-@property --garur-grayscale          { syntax: "<number>";           inherits: false; initial-value: 0; }
-@property --garur-invert             { syntax: "<number>";           inherits: false; initial-value: 0; }
-@property --garur-sepia              { syntax: "<number>";           inherits: false; initial-value: 0; }
-@property --garur-space-x-reverse    { syntax: "<number>";           inherits: false; initial-value: 0; }
-@property --garur-space-y-reverse    { syntax: "<number>";           inherits: false; initial-value: 0; }
-@property --garur-divide-x-reverse   { syntax: "<number>";           inherits: false; initial-value: 0; }
-@property --garur-divide-y-reverse   { syntax: "<number>";           inherits: false; initial-value: 0; }
-@property --garur-gradient-from      { syntax: "<color>";            inherits: false; initial-value: transparent; }
-@property --garur-gradient-via       { syntax: "<color>";            inherits: false; initial-value: transparent; }
-@property --garur-gradient-to        { syntax: "<color>";            inherits: false; initial-value: transparent; }
-@property --garur-gradient-interpolation { syntax: "*";              inherits: false; }
-@property --garur-text-shadow-color  { syntax: "<color>";            inherits: false; initial-value: rgb(0 0 0 / 0.1); }
-@property --garur-focus-color        { syntax: "<color>";            inherits: false; initial-value: currentColor; }
-@property --garur-focus-width        { syntax: "<length>";           inherits: false; initial-value: 2px; }
-@property --garur-focus-offset       { syntax: "<length>";           inherits: false; initial-value: 2px; }
-@property --garur-scrollbar-thumb    { syntax: "<color>";            inherits: false; initial-value: rgb(0 0 0 / 0.25); }
-@property --garur-scrollbar-track    { syntax: "<color>";            inherits: false; initial-value: transparent; }
+// ───────────────────────────────────────────────
+// SECTION: Runtime design tokens
+// ───────────────────────────────────────────────
+
+const TOKENS: &str = r##"
+
+/* ── Garur runtime design tokens ──
+   Override these on :root to retheme the whole stylesheet. */
+:root {
+  --garur-border: currentColor;
+  --garur-radius: 0.5rem;
+  --garur-focus-color: currentColor;
+  --garur-focus-width: 2px;
+  --garur-focus-offset: 2px;
+  --garur-selection-bg: highlight;
+  --garur-selection-fg: highlighttext;
+  --garur-mark-bg: mark;
+  --garur-mark-fg: inherit;
+  --garur-disabled-opacity: 0.5;
+  --garur-scrollbar-thumb: rgb(0 0 0 / 0.25);
+  --garur-scrollbar-track: transparent;
+  --garur-placeholder: color-mix(in oklab, currentColor 50%, transparent);
+  --garur-smooth-scroll: auto;
+}
+
+/* Explicit dark preference (class or attribute) */
+:root.dark,
+:root[data-theme="dark"] {
+  --garur-border: rgb(255 255 255 / 0.15);
+  --garur-scrollbar-thumb: rgb(255 255 255 / 0.3);
+  --garur-disabled-opacity: 0.4;
+}
 "##;
 
 // ───────────────────────────────────────────────
-// Sections
+// SECTION: Universal reset
 // ───────────────────────────────────────────────
 
-const SEC_RESET: &str = r##"
+const RESET: &str = r##"
 
-*, ::before, ::after, ::backdrop, ::file-selector-button {
+/* ── Universal box model ── */
+*,
+*::before,
+*::after,
+::backdrop,
+::file-selector-button {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+  min-width: 0;
   border: 0 solid;
 }
 
-html, :host {
+/* ── Root defaults ── */
+:root,
+:host {
+  margin: 0;
+  padding: 0;
   line-height: 1.5;
-  -webkit-text-size-adjust: 100%;
-  -moz-tab-size: 4;
-  tab-size: 4;
+  text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
   text-rendering: optimizeLegibility;
+  font-synthesis: none;
 }
-"##;
 
-const SEC_SCROLLBAR_GUTTER: &str = r##"
-
+/* ── Scrollbar stability (capability-detected) ── */
 @supports (scrollbar-gutter: stable) {
-  html { scrollbar-gutter: stable; }
+  :root {
+    scrollbar-gutter: stable;
+  }
 }
 "##;
 
-const SEC_DARK_AUTO: &str = r##"
+// ───────────────────────────────────────────────
+// SECTION: Typography
+// ───────────────────────────────────────────────
 
-:root {
-  color-scheme: light dark;
-  accent-color: auto;
-}
+const TYPOGRAPHY: &str = r##"
 
-@media (prefers-color-scheme: dark) {
-  :root { color-scheme: dark; }
-}
-"##;
-
-const SEC_TYPOGRAPHY: &str = r##"
-
-hr {
-  height: 0;
-  color: inherit;
-  border-block-start-width: 1px;
-}
-
-abbr:where([title]) {
-  -webkit-text-decoration: underline dotted;
-          text-decoration: underline dotted;
-}
-
-h1, h2, h3, h4, h5, h6 {
+/* ── Headings ── */
+:where(h1, h2, h3, h4, h5, h6) {
   font-size: inherit;
   font-weight: inherit;
   text-wrap: balance;
+  line-height: 1.2;
 }
 
-p, li, figcaption {
+/* ── Text blocks ── */
+:where(p, li, figcaption, dd, dt) {
   text-wrap: pretty;
 }
 
-a {
+/* ── Anchors ── */
+:where(a) {
   color: inherit;
-  -webkit-text-decoration: inherit;
-          text-decoration: inherit;
+  text-decoration: inherit;
 }
 
-b, strong { font-weight: bolder; }
+/* ── Emphasis ── */
+:where(b, strong) { font-weight: 600; }
+:where(i, em, cite, dfn, var) { font-style: italic; }
+:where(s, del, strike) { text-decoration: line-through; }
+:where(u, ins) { text-decoration: underline; }
 
-code, kbd, samp, pre {
+/* ── Code ── */
+:where(code, kbd, samp, pre) {
   font-family: var(--garur-font-mono,
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Mono",
     "Liberation Mono", "Courier New", monospace);
-  font-feature-settings: var(--garur-font-mono-feature-settings, normal);
-  font-variation-settings: var(--garur-font-mono-variation-settings, normal);
   font-size: 1em;
+  font-feature-settings: "liga" 0;
 }
 
-small { font-size: 80%; }
-
-sub, sup {
-  font-size: 75%;
+/* ── Small / sub / sup ── */
+:where(small) { font-size: 80%; }
+:where(sub, sup) {
+  font-size: 80%;
   line-height: 0;
   position: relative;
   vertical-align: baseline;
 }
-sub { inset-block-end: -0.25em; }
-sup { inset-block-start: -0.5em; }
+:where(sub) { inset-block-end: -0.25em; }
+:where(sup) { inset-block-start: -0.5em; }
 
-mark {
-  background-color: var(--garur-mark-bg, mark);
-  color: var(--garur-mark-fg, inherit);
+/* ── Dividers ── */
+:where(hr) {
+  height: 0;
+  color: inherit;
+  border-block-start: 1px solid currentColor;
+  opacity: 0.2;
 }
 
-table {
+/* ── Abbreviations ── */
+:where(abbr[title]) {
+  text-decoration: underline dotted;
+  cursor: help;
+}
+
+/* ── Mark ── */
+:where(mark) {
+  background-color: var(--garur-mark-bg);
+  color: var(--garur-mark-fg);
+}
+
+/* ── Tables ── */
+:where(table) {
   text-indent: 0;
   border-color: inherit;
   border-collapse: collapse;
   border-spacing: 0;
 }
 
-:where(ol, ul, menu) { list-style: none; }
-
-img, svg, video, canvas, audio, iframe, embed, object {
-  display: block;
-  vertical-align: middle;
+/* ── Lists — preserved by default, nav-cleanup automatic ── */
+:where(menu, ol, ul) {
+  padding-inline-start: 1.5em;
+}
+:where(nav, [role="navigation"]) :where(menu, ol, ul) {
+  padding-inline-start: 0;
+  list-style: none;
 }
 
-img, video {
+/* ── Media ── */
+:where(img, svg, video, canvas, audio, iframe, embed, object, picture) {
+  display: block;
   max-inline-size: 100%;
   block-size: auto;
 }
+:where(video) { object-fit: cover; }
+
+/* ── Figure / Blockquote / Pre ── */
+:where(figure) { margin: 0; }
+:where(figcaption) { font-size: 0.875em; opacity: 0.75; }
+:where(blockquote) {
+  margin: 0;
+  padding-inline-start: 1rem;
+  border-inline-start: 3px solid var(--garur-border);
+}
+:where(pre) {
+  overflow: auto;
+  padding: 1rem;
+  border-radius: var(--garur-radius);
+  background: color-mix(in oklab, currentColor 5%, transparent);
+}
 "##;
 
-const SEC_FORMS: &str = r##"
+// ───────────────────────────────────────────────
+// SECTION: Forms
+// ───────────────────────────────────────────────
 
-button, input, select, optgroup, textarea, ::file-selector-button {
+const FORMS: &str = r##"
+
+/* ── Universal control ── */
+:where(button, input, select, optgroup, textarea, ::file-selector-button) {
   font: inherit;
-  font-feature-settings: inherit;
-  font-variation-settings: inherit;
-  letter-spacing: inherit;
   color: inherit;
+  letter-spacing: inherit;
+  background: transparent;
   border-radius: 0;
-  background-color: transparent;
   opacity: 1;
 }
 
-:where(select:is([multiple], [size])) optgroup {
-  font-weight: bolder;
+/* ── Text inputs ── */
+:where(input, textarea) {
+  appearance: none;
+  min-width: 0;
 }
 
-:where(select:is([multiple], [size])) optgroup option {
-  padding-inline-start: 20px;
+:where(textarea) {
+  resize: vertical;
+  field-sizing: content;
+  min-block-size: 2lh;
 }
 
-::file-selector-button { margin-inline-end: 4px; }
-
-::placeholder { opacity: 1; }
-
-@supports (not (-webkit-appearance: -apple-pay-button))
-       or (contain-intrinsic-size: 1px) {
-  ::placeholder {
-    color: color-mix(in oklab, currentColor 50%, transparent);
-  }
+/* ── Select ── */
+:where(select) {
+  appearance: auto;
+  background: Canvas;
+  color: CanvasText;
 }
 
-@supports (field-sizing: content) {
-  :where(textarea) {
-    field-sizing: content;
-    min-block-size: 3lh;
-  }
+/* ── Button ── */
+:where(button) {
+  appearance: none;
+  cursor: pointer;
+  user-select: none;
 }
 
-textarea { resize: vertical; }
-
-::-webkit-search-decoration { -webkit-appearance: none; }
-::-webkit-date-and-time-value { min-height: 1lh; text-align: inherit; }
-::-webkit-datetime-edit { display: inline-flex; }
-::-webkit-datetime-edit-fields-wrapper { padding: 0; }
-
-:where(
-  ::-webkit-datetime-edit,
-  ::-webkit-datetime-edit-year-field,
-  ::-webkit-datetime-edit-month-field,
-  ::-webkit-datetime-edit-day-field,
-  ::-webkit-datetime-edit-hour-field,
-  ::-webkit-datetime-edit-minute-field,
-  ::-webkit-datetime-edit-second-field,
-  ::-webkit-datetime-edit-millisecond-field,
-  ::-webkit-datetime-edit-meridiem-field
-) {
-  padding-block: 0;
+/* ── File button ── */
+:where(::file-selector-button) {
+  margin-inline-end: 4px;
+  padding: 0.25em 0.5em;
+  border-radius: var(--garur-radius);
 }
 
-:-moz-ui-invalid { box-shadow: none; }
-
-:where(
-  button,
-  input:where([type="button"], [type="reset"], [type="submit"]),
-  ::file-selector-button
-) {
-  -webkit-appearance: button;
-          appearance: button;
+/* ── Placeholder ── */
+:where(::placeholder) {
+  color: var(--garur-placeholder);
+  opacity: 1;
 }
 
-::-webkit-inner-spin-button,
-::-webkit-outer-spin-button { height: auto; }
-
-[type="search"] {
+/* ── Webkit / Blink internals ── */
+:where(input[type="search"]) {
   -webkit-appearance: textfield;
-  outline-offset: -2px;
 }
+:where(::-webkit-search-cancel-button),
+:where(::-webkit-search-decoration) {
+  -webkit-appearance: none;
+}
+:where(::-webkit-inner-spin-button),
+:where(::-webkit-outer-spin-button) {
+  height: auto;
+}
+:where(::-webkit-calendar-picker-indicator) { line-height: 1; }
+:where(::-webkit-date-and-time-value) { text-align: inherit; }
 
-::-webkit-search-cancel-button,
-::-webkit-search-decoration,
-::-webkit-search-results-button,
-::-webkit-search-results-decoration { -webkit-appearance: none; }
+/* ── Disabled state (Garur-only) ── */
+:where([disabled], [aria-disabled="true"]) {
+  opacity: var(--garur-disabled-opacity);
+  cursor: not-allowed;
+  pointer-events: none;
+}
 "##;
 
-const SEC_A11Y: &str = r##"
+// ───────────────────────────────────────────────
+// SECTION: Accessibility + motion
+// ───────────────────────────────────────────────
 
-:focus-visible {
-  outline: var(--garur-focus-width, 2px) solid var(--garur-focus-color, currentColor);
-  outline-offset: var(--garur-focus-offset, 2px);
+const A11Y: &str = r##"
+
+/* ── Default accessible focus ring ── */
+:where(:focus-visible) {
+  outline: var(--garur-focus-width) solid var(--garur-focus-color);
+  outline-offset: var(--garur-focus-offset);
 }
+:where(:focus:not(:focus-visible)) { outline: none; }
 
-:focus:not(:focus-visible) { outline: none; }
-
+/* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  :where(*),
+  :where(*::before),
+  :where(*::after) {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -326,105 +351,273 @@ const SEC_A11Y: &str = r##"
   }
 }
 
+/* ── High contrast ── */
 @media (prefers-contrast: more) {
-  :root { --garur-focus-width: 3px; }
+  :root {
+    --garur-focus-width: 3px;
+    --garur-border: CanvasText;
+  }
 }
 
+/* ── Forced colors (Windows High Contrast) ── */
 @media (forced-colors: active) {
-  :focus-visible { outline: 2px solid Highlight; }
+  :where(:focus-visible) {
+    outline: 2px solid Highlight;
+  }
+  :where(dialog, [popover]) {
+    border: 1px solid CanvasText;
+  }
 }
 
-[hidden]:where(:not([hidden="until-found"])) {
+/* ── Opt-in smooth scroll ── */
+@media (prefers-reduced-motion: no-preference) {
+  :where([data-garur-motion="smooth"]) {
+    scroll-behavior: smooth;
+  }
+}
+
+/* ── Hidden elements ── */
+:where([hidden]:not([hidden="until-found"])) {
   display: none !important;
 }
 "##;
 
-const SEC_MODERN: &str = r##"
+// ───────────────────────────────────────────────
+// SECTION: Modern HTML elements
+// ───────────────────────────────────────────────
 
-dialog {
+const MODERN: &str = r##"
+
+/* ── Dialog ── */
+:where(dialog) {
   margin: auto;
-  max-inline-size: min(90vw, 60ch);
+  padding: 1.25rem;
+  max-inline-size: min(90ch, 90vw);
   max-block-size: 85vh;
   overflow: auto;
-  padding: 1rem;
-  border: 1px solid var(--garur-border, currentColor);
-  border-radius: var(--garur-radius, 0.5rem);
+  border: 1px solid var(--garur-border);
+  border-radius: var(--garur-radius);
   background: Canvas;
   color: CanvasText;
 }
-
-dialog::backdrop {
+:where(dialog)::backdrop {
   background: rgb(0 0 0 / 0.5);
-  backdrop-filter: blur(2px);
 }
 
-[popover] {
+/* ── Popover ── */
+:where([popover]) {
   margin: auto;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--garur-border, currentColor);
-  border-radius: var(--garur-radius, 0.5rem);
+  border: 1px solid var(--garur-border);
+  border-radius: var(--garur-radius);
   background: Canvas;
   color: CanvasText;
 }
-
-[popover]::backdrop {
+:where([popover])::backdrop {
   background: rgb(0 0 0 / 0.15);
 }
 
-details > summary {
+/* ── Details / summary ── */
+:where(details) > :where(summary) {
   cursor: pointer;
   user-select: none;
   list-style: none;
 }
-
-details > summary::-webkit-details-marker { display: none; }
-details > summary::marker { content: ""; }
-details[open] > summary { margin-block-end: 0.5rem; }
-
-::selection {
-  background-color: var(--garur-selection-bg, highlight);
-  color: var(--garur-selection-fg, highlighttext);
+:where(details) > :where(summary)::-webkit-details-marker {
+  display: none;
+}
+:where(details) > :where(summary)::marker {
+  content: "";
 }
 
-::target-text {
-  background-color: var(--garur-target-bg, yellow);
-  color: inherit;
+/* ── Selection ── */
+:where(::selection) {
+  background-color: var(--garur-selection-bg);
+  color: var(--garur-selection-fg);
+}
+
+/* ── Find-in-page highlight ── */
+:where(::target-text) {
+  background-color: highlight;
+  color: highlighttext;
+}
+
+/* ── Meter / progress ── */
+:where(meter, progress) {
+  vertical-align: baseline;
+  inline-size: 100%;
+  block-size: 0.75rem;
+  border: none;
+  border-radius: var(--garur-radius);
+  overflow: hidden;
+}
+
+/* ── Fieldset / legend ── */
+:where(fieldset) {
+  border: 1px solid var(--garur-border);
+  border-radius: var(--garur-radius);
+  padding: 0.75rem 1rem;
+}
+:where(legend) {
+  padding-inline: 0.5rem;
+  font-weight: 600;
 }
 "##;
 
-// NOTE: must use r##"..."## — contains `"#` inside `[href^="#"]`
-const SEC_PRINT: &str = r##"
+// ───────────────────────────────────────────────
+// SECTION: Performance animation hints (Garur-unique)
+// ───────────────────────────────────────────────
+
+const PERF_ANIMATION: &str = r##"
+
+/* ── GPU-accelerated animation defaults ──
+   Elements declaring animation/transition utilities get a
+   composited layer hint, so the browser doesn't repaint on
+   every frame. Reverted automatically when motion is reduced. */
+:where([class*="animate-"], [class*="transition-"], [data-garur-animate]) {
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+:where([class*="animate-"]) {
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where([class*="animate-"], [class*="transition-"]) {
+    will-change: auto;
+    transform: none;
+  }
+}
+"##;
+
+// ───────────────────────────────────────────────
+// SECTION: Reduced data (Garur-unique)
+// ───────────────────────────────────────────────
+
+const REDUCED_DATA: &str = r##"
+
+/* ── Data-saver mode ──
+   Respects prefers-reduced-data: reduce (Chrome 115+, Edge 115+).
+   Disables animations, background images, and heavy rendering. */
+@media (prefers-reduced-data: reduce) {
+  :where(*),
+  :where(*::before),
+  :where(*::after) {
+    animation: none !important;
+    transition: none !important;
+    background-image: none !important;
+  }
+  :where(img, video) {
+    image-rendering: pixelated;
+  }
+}
+"##;
+
+// ───────────────────────────────────────────────
+// SECTION: Reduced transparency (Garur-unique)
+// ───────────────────────────────────────────────
+
+const REDUCED_TRANSPARENCY: &str = r##"
+
+/* ── Low-vision friendly ──
+   Respects prefers-reduced-transparency: reduce
+   (Safari 17+, Chrome 118+). Replaces translucent
+   surfaces with solid equivalents. */
+@media (prefers-reduced-transparency: reduce) {
+  :where(*) {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  :where(dialog)::backdrop {
+    background: rgb(0 0 0 / 0.75) !important;
+  }
+  :where([popover])::backdrop {
+    background: rgb(0 0 0 / 0.4) !important;
+  }
+}
+"##;
+
+// ───────────────────────────────────────────────
+// SECTION: Auto dark mode controls (opt-in, Garur-unique)
+// ───────────────────────────────────────────────
+
+const AUTO_DARK_CONTROLS: &str = r##"
+
+/* ── Automatic dark-mode form controls ──
+   When the OS prefers dark, native form controls adapt
+   automatically without any utility classes needed.
+   Opt-in via `auto_dark_controls: true`. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+  }
+  :root:not([data-theme="light"]) :where(input, textarea, select) {
+    background-color: color-mix(in oklab, CanvasText 5%, transparent);
+  }
+  :root:not([data-theme="light"]) :where(::placeholder) {
+    color: color-mix(in oklab, CanvasText 40%, transparent);
+  }
+}
+"##;
+
+// ───────────────────────────────────────────────
+// SECTION: Global color-scheme (opt-in)
+// ───────────────────────────────────────────────
+
+const DARK_AUTO: &str = r##"
+
+/* ── Native color-scheme opt-in ──
+   Enables OS-level dark styling for scrollbars,
+   form controls, and default UI. */
+:root {
+  color-scheme: light dark;
+}
+"##;
+
+// ───────────────────────────────────────────────
+// SECTION: Print
+// ───────────────────────────────────────────────
+
+const PRINT: &str = r##"
 
 @media print {
-  *, *::before, *::after {
-    background: transparent !important;
-    color: black !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
+  :where(:root) {
+    color-scheme: only light;
   }
-  a, a:visited {
-    text-decoration: underline;
+
+  :where(body) {
+    background: white;
+    color: black;
   }
-  a[href]::after {
+
+  :where(a[href])::after {
     content: " (" attr(href) ")";
-    font-size: 90%;
+    font-size: 0.85em;
+    color: inherit;
+    opacity: 0.7;
   }
-  a[href^="#"]::after,
-  a[href^="javascript:"]::after {
-    content: "";
-  }
-  abbr[title]::after {
+
+  :where(abbr[title])::after {
     content: " (" attr(title) ")";
   }
-  pre, blockquote {
-    border: 1px solid #999;
+
+  :where(pre, blockquote, tr, img, figure) {
     page-break-inside: avoid;
   }
-  thead { display: table-header-group; }
-  tr, img { page-break-inside: avoid; }
-  img { max-inline-size: 100% !important; }
-  h2, h3 { page-break-after: avoid; }
-  @page { margin: 0.5cm; }
+
+  :where(h1, h2, h3, h4, h5, h6) {
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+
+  :where(thead) {
+    display: table-header-group;
+  }
+
+  @page {
+    margin: 1cm;
+  }
 }
 "##;
 
@@ -433,7 +626,6 @@ const SEC_PRINT: &str = r##"
 // ───────────────────────────────────────────────
 
 type CacheSlot = Mutex<Option<(PreflightOptions, Arc<str>)>>;
-
 static CACHE: OnceCell<CacheSlot> = OnceCell::new();
 
 #[inline]
@@ -445,17 +637,12 @@ fn slot() -> &'static CacheSlot {
 // Public API
 // ───────────────────────────────────────────────
 
-/// Build preflight for a given option set. Cached across calls.
-/// Returns `Arc<str>` — cheap to clone (no re-allocation).
+/// Build preflight CSS for the given options (cached by option set).
 pub fn build_preflight(opts: PreflightOptions) -> Arc<str> {
     let cell = slot();
     let mut guard = match cell.lock() {
         Ok(g) => g,
-        Err(poisoned) => {
-            // Another thread panicked while holding the lock.
-            // Recover gracefully — don't cascade the panic.
-            poisoned.into_inner()
-        }
+        Err(poisoned) => poisoned.into_inner(),
     };
 
     if let Some((cached_opts, cached_css)) = guard.as_ref() {
@@ -470,19 +657,19 @@ pub fn build_preflight(opts: PreflightOptions) -> Arc<str> {
     arc
 }
 
-/// Default preflight — backward-compatible `String` return.
+/// Default preflight as `String` (backward-compatible).
 pub fn preflight() -> String {
     build_preflight(PreflightOptions::default())
         .as_ref()
         .to_string()
 }
 
-/// Default preflight as `Arc<str>` — for hot paths (finalize, caches).
+/// Default preflight as `Arc<str>` — for hot paths.
 pub fn preflight_arc() -> Arc<str> {
     build_preflight(PreflightOptions::default())
 }
 
-/// Reset the cache. Call after config change / hot-reload.
+/// Clear the cached preflight. Call after config change.
 pub fn clear_cache() {
     if let Some(cell) = CACHE.get() {
         if let Ok(mut g) = cell.lock() {
@@ -498,7 +685,9 @@ pub fn layer() -> &'static str {
 
 #[inline]
 pub fn properties() -> &'static str {
-    PROPERTY_DECLS
+    // Garur uses runtime tokens instead of @property-heavy registration.
+    // This hook remains for backward compatibility.
+    ""
 }
 
 // ───────────────────────────────────────────────
@@ -506,57 +695,82 @@ pub fn properties() -> &'static str {
 // ───────────────────────────────────────────────
 
 fn assemble(opts: PreflightOptions) -> String {
-    // Pre-size generously: worst case with print ~7 KB.
-    let mut out = String::with_capacity(7_500);
+    let mut out = String::with_capacity(9_500);
 
-    // 1) Layer order (must be first).
+    // Layer order must be first.
     out.push_str(LAYER_DECL);
-    out.push_str("\n\n");
-
-    // 2) Custom-property registrations.
-    out.push_str(PROPERTY_DECLS);
     out.push('\n');
 
-    // 3) Base layer.
-    let any_base = opts.reset
-        || opts.dark_auto
-        || opts.typography
-        || opts.forms
-        || opts.a11y
-        || opts.modern;
-
-    if any_base {
-        out.push_str("\n@layer garur-base {\n");
-
-        if opts.reset {
-            out.push_str(SEC_RESET);
-            if opts.scrollbar_gutter {
-                out.push_str(SEC_SCROLLBAR_GUTTER);
-            }
+    // @layer garur-tokens
+    if opts.runtime_theme || opts.dark_auto {
+        out.push_str("\n@layer garur-tokens {\n");
+        if opts.runtime_theme {
+            out.push_str(TOKENS);
         }
         if opts.dark_auto {
-            out.push_str(SEC_DARK_AUTO);
+            out.push_str(DARK_AUTO);
         }
-        if opts.typography {
-            out.push_str(SEC_TYPOGRAPHY);
-        }
-        if opts.forms {
-            out.push_str(SEC_FORMS);
-        }
-        if opts.a11y {
-            out.push_str(SEC_A11Y);
-        }
-        if opts.modern {
-            out.push_str(SEC_MODERN);
-        }
-
         out.push_str("\n}\n");
     }
 
-    // 4) Overrides layer (print).
+    // @layer garur-reset
+    if opts.reset {
+        out.push_str("\n@layer garur-reset {\n");
+        out.push_str(RESET);
+        out.push_str("\n}\n");
+    }
+
+    // @layer garur-elements
+    let any_elements = opts.typography || opts.modern;
+    if any_elements {
+        out.push_str("\n@layer garur-elements {\n");
+        if opts.typography {
+            out.push_str(TYPOGRAPHY);
+        }
+        if opts.modern {
+            out.push_str(MODERN);
+        }
+        out.push_str("\n}\n");
+    }
+
+    // @layer garur-forms
+    if opts.forms {
+        out.push_str("\n@layer garur-forms {\n");
+        out.push_str(FORMS);
+        out.push_str("\n}\n");
+    }
+
+    // @layer garur-motion (a11y + perf + reduced-data/transparency)
+    let any_motion = opts.a11y
+        || opts.perf_animation
+        || opts.reduced_data
+        || opts.reduced_transparency
+        || opts.auto_dark_controls;
+
+    if any_motion {
+        out.push_str("\n@layer garur-motion {\n");
+        if opts.a11y {
+            out.push_str(A11Y);
+        }
+        if opts.perf_animation {
+            out.push_str(PERF_ANIMATION);
+        }
+        if opts.reduced_data {
+            out.push_str(REDUCED_DATA);
+        }
+        if opts.reduced_transparency {
+            out.push_str(REDUCED_TRANSPARENCY);
+        }
+        if opts.auto_dark_controls {
+            out.push_str(AUTO_DARK_CONTROLS);
+        }
+        out.push_str("\n}\n");
+    }
+
+    // @layer garur-utils (print, no utility generation here)
     if opts.print {
-        out.push_str("\n@layer garur-overrides {\n");
-        out.push_str(SEC_PRINT);
+        out.push_str("\n@layer garur-utils {\n");
+        out.push_str(PRINT);
         out.push_str("\n}\n");
     }
 
@@ -572,13 +786,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_contains_core_sections() {
+    fn default_contains_all_core_sections() {
         let css = build_preflight(PreflightOptions::default());
-        assert!(css.contains("box-sizing: border-box"),      "missing reset");
-        assert!(css.contains("color-scheme: light dark"),    "missing dark_auto");
-        assert!(css.contains(":focus-visible"),              "missing a11y");
-        assert!(css.contains("dialog"),                      "missing modern");
-        assert!(!css.contains("@media print"),               "print should be off");
+        assert!(css.contains("@layer garur-tokens"));
+        assert!(css.contains("box-sizing: border-box"));
+        assert!(css.contains(":focus-visible"));
+        assert!(css.contains("dialog"));
+        assert!(css.contains("prefers-reduced-data"));
+        assert!(css.contains("prefers-reduced-transparency"));
+        assert!(css.contains("backface-visibility"));
+        assert!(!css.contains("@media print"), "print should be off by default");
+        assert!(!css.contains("color-scheme: light dark"), "dark_auto should be off");
     }
 
     #[test]
@@ -586,11 +804,26 @@ mod tests {
         let opts = PreflightOptions { print: true, ..Default::default() };
         let css = build_preflight(opts);
         assert!(css.contains("@media print"));
-        assert!(css.contains(r#"a[href^="#"]::after"#));
+        assert!(css.contains("attr(href)"));
     }
 
     #[test]
-    fn minimal_mode_has_no_reset() {
+    fn dark_auto_opt_in() {
+        let opts = PreflightOptions { dark_auto: true, ..Default::default() };
+        let css = build_preflight(opts);
+        assert!(css.contains("color-scheme: light dark"));
+    }
+
+    #[test]
+    fn auto_dark_controls_opt_in() {
+        let opts = PreflightOptions { auto_dark_controls: true, ..Default::default() };
+        let css = build_preflight(opts);
+        assert!(css.contains("prefers-color-scheme: dark"));
+        assert!(css.contains("CanvasText"));
+    }
+
+    #[test]
+    fn minimal_mode() {
         let opts = PreflightOptions {
             reset: false,
             typography: false,
@@ -600,13 +833,17 @@ mod tests {
             print: false,
             dark_auto: false,
             scrollbar_gutter: false,
+            runtime_theme: false,
+            perf_animation: false,
+            reduced_data: false,
+            reduced_transparency: false,
+            auto_dark_controls: false,
         };
         let css = build_preflight(opts);
-        assert!(!css.contains("box-sizing: border-box"));
+        // Only layer decl remains
+        assert!(css.contains("@layer garur-tokens"));
+        assert!(!css.contains("box-sizing"));
         assert!(!css.contains(":focus-visible"));
-        // Layer decl + @property are always present
-        assert!(css.contains("@layer garur-theme"));
-        assert!(css.contains("@property --garur-ring-width"));
     }
 
     #[test]
@@ -617,26 +854,24 @@ mod tests {
     }
 
     #[test]
-    fn cache_returns_same_arc_for_same_opts() {
+    fn cache_returns_same_arc() {
         let opts = PreflightOptions::default();
         let a = build_preflight(opts);
         let b = build_preflight(opts);
-        assert!(Arc::ptr_eq(&a, &b), "cache should return the same Arc");
+        assert!(Arc::ptr_eq(&a, &b));
     }
 
     #[test]
-    fn clear_cache_forces_rebuild() {
+    fn clear_cache_works() {
         let opts = PreflightOptions::default();
         let a = build_preflight(opts);
         clear_cache();
         let b = build_preflight(opts);
-        // Different Arc instances now, but identical content.
         assert_eq!(a.as_ref(), b.as_ref());
     }
 
     #[test]
     fn layer_and_properties_constants() {
         assert!(layer().contains("@layer"));
-        assert!(properties().contains("@property"));
     }
 }
