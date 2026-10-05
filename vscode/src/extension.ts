@@ -27,7 +27,7 @@ function loadWorkspaceUtilDocs(): UtilDoc[] {
 const bundledDocs: UtilDoc[] = [
   { id: "p-4", desc: "Padding: 1rem", example: "p-4", category: "spacing" },
   { id: "m-4", desc: "Margin: 1rem", example: "m-4", category: "spacing" },
-  { id: "bg-blue-500", desc: "Background color: blue 500", example: "bg-blue-500", category: "colors" },
+  { id: "bg-azure-500", desc: "Background color: blue 500", example: "bg-azure-500", category: "colors" },
   { id: "text-white", desc: "Text color: white", example: "text-white", category: "colors" },
   { id: "rounded", desc: "Border radius (default)", example: "rounded", category: "borderRadius" }
 ];

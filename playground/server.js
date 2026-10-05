@@ -6,7 +6,7 @@
 //
 // Endpoints:
 //  - GET  /api/status
-//  - POST /api/build  { classes: "p-4 bg-blue-500" }
+//  - POST /api/build  { classes: "p-4 bg-azure-500" }
 //  - POST /api/reload -> re-attempt to load dist or src modules after a build
 
 const express = require("express");
@@ -271,7 +271,7 @@ app.post("/api/reload", async (req, res) => {
     console.log(`Garur Playground running at http://localhost:${port}`);
     console.log("Endpoints:");
     console.log("  GET  /api/status       -> check builder/merge status");
-    console.log("  POST /api/build        -> { classes: 'p-4 bg-red-500' }");
+    console.log("  POST /api/build        -> { classes: 'p-4 bg-ruby-500' }");
     console.log("  POST /api/reload       -> attempt to reload dist modules (use after yarn build)");
     if (startupErrors.length) {
       console.warn("Startup warnings / errors:", startupErrors);

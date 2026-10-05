@@ -323,9 +323,9 @@ function cmdExample(): boolean {
   <title>GarurSaili Demo</title>
   <link rel="stylesheet" href="dist/garur.css">
 </head>
-<body class="bg-gray-50 p-8">
+<body class="bg-ash-50 p-8">
   <div class="max-w-4xl mx-auto">
-    <h1 class="text-4xl font-bold text-blue-600 mb-6">🦅 GarurSaili-CSS</h1>
+    <h1 class="text-4xl font-bold text-azure-600 mb-6">🦅 GarurSaili-CSS</h1>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="bg-white p-6 rounded-lg shadow-lg">Card 1</div>
       <div class="bg-white p-6 rounded-lg shadow-lg">Card 2</div>

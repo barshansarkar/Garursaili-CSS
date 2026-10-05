@@ -42,7 +42,7 @@ const critical = [
   'bg-clip-text', 'drop-shadow-lg',
   'caption-top', 'outline-hidden', 'transition-discrete',
   'bg-linear-to-r', 'bg-radial', 'bg-conic-180',
-  'rotate-z-45', 'ring-offset-blue-500', 'text-shadow-lg',
+  'rotate-z-45', 'ring-offset-azure-500', 'text-shadow-lg',
   'list-image-none', 'content-none',
 ];
 
@@ -57,17 +57,17 @@ console.log(`   → ${cPass}/${critical.length}\n`);
 
 // ── Test 3: Variants
 const variantTests = [
-  'hover:bg-red-500', 'md:flex', 'dark:text-white',
+  'hover:bg-ruby-500', 'md:flex', 'dark:text-white',
   'nth-3:text-bold', 'nth-last-2:opacity-50', 'nth-of-type-2:underline',
   'not-hover:underline',
   '*:p-2', '**:m-1',
-  'inert:opacity-50', 'user-valid:border-green-500', 'user-invalid:border-red-500',
+  'inert:opacity-50', 'user-valid:border-forest-500', 'user-invalid:border-ruby-500',
   '@sm/card:flex', '@lg/sidebar:grid', '@container/card:block',
-  'group-hover:text-blue-500', 'group-has-[:checked]:bg-green-500',
+  'group-hover:text-azure-500', 'group-has-[:checked]:bg-forest-500',
   'peer-checked:opacity-100', 'peer-has-[:focus]:ring-2',
-  'has-[:checked]:border-blue-500',
-  'data-[state=open]:rotate-90', 'data-active:bg-blue-500',
-  'aria-expanded:bg-blue-500',
+  'has-[:checked]:border-azure-500',
+  'data-[state=open]:rotate-90', 'data-active:bg-azure-500',
+  'aria-expanded:bg-azure-500',
   'supports-[display:grid]:grid',
   'min-[900px]:p-8', 'max-md:hidden',
   'starting:opacity-0', 'popover-open:opacity-100',
@@ -88,7 +88,7 @@ console.log(`   → ${vPass}/${variantTests.length}\n`);
 // ── Test 4: @apply with variants
 console.log('📝 @apply test:');
 try {
-  const out = garur.processCssInput('.test { @apply bg-blue-500 hover:bg-red-500 p-4 md:flex; }');
+  const out = garur.processCssInput('.test { @apply bg-azure-500 hover:bg-ruby-500 p-4 md:flex; }');
   console.log(out);
 } catch (e: any) {
   console.log(`❌ @apply failed: ${e.message}`);
