@@ -85,7 +85,9 @@ pub fn run_with_options(files: &[String], config_json: &str, opts: SscOptions) -
         }
         v
     };
-    unique.sort();
+    unique.sort_by(|a, b| {
+        class_priority(a).cmp(&class_priority(b)).then_with(|| a.cmp(b))
+    });
 
 let rules: Vec<(String, std::sync::Arc<str>)> = unique
     .par_iter()
@@ -454,4 +456,120 @@ pub fn cache_decode(data: &[u8]) -> Result<String, String> {
     let cache: GarurCache =
         bincode::deserialize(data).map_err(|e| format!("cache decode: {}", e))?;
     serde_json::to_string(&cache).map_err(|e| format!("cache json: {}", e))
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Cascade priority — lower numbers come FIRST in output CSS,
+// so later-declared rules override earlier ones.
+// ═══════════════════════════════════════════════════════════════════
+
+#[inline]
+fn class_priority(cls: &str) -> u8 {
+    if is_primitive(cls) { return 1; }
+    if cls.contains('[') { return 5; }
+    if cls.starts_with('@') { return 3; }
+    if cls.contains(':') { return 4; }
+    2
+}
+
+fn is_primitive(cls: &str) -> bool {
+    matches!(
+        cls,
+        // ── Layout shortcuts ──
+        "center" | "center-x"
+        | "row" | "row-center" | "row-between" | "row-around" | "row-evenly" | "row-start" | "row-end"
+        | "stack" | "stack-center" | "stack-between" | "stack-start" | "stack-end"
+        | "cluster" | "cluster-center"
+        | "hstack" | "vstack"
+        | "grid-1" | "grid-2" | "grid-3" | "grid-4" | "grid-5" | "grid-6"
+        | "grid-7" | "grid-8" | "grid-9" | "grid-10" | "grid-11" | "grid-12"
+        | "grid-auto" | "grid-auto-fill" | "split" | "spacer"
+
+        // ── Layout structural ──
+        | "main" | "aside"
+        | "section" | "section-sm" | "section-lg" | "page-section"
+        | "hero" | "hero-sm" | "hero-lg"
+        | "cover" | "fixed-cover" | "fixed-center" | "abs-center"
+        | "sticky-top" | "scroll-y" | "scroll-x"
+        | "aspect-square" | "aspect-video" | "aspect-photo"
+
+        // ── Container ──
+        | "container" | "container-sm" | "container-md" | "container-lg"
+        | "container-xl" | "container-2xl" | "container-fluid" | "container-pad"
+
+        // ── Typography ──
+        | "page-title" | "page-subtitle"
+        | "hero-title" | "hero-subtitle"
+        | "section-title" | "section-subtitle"
+        | "card-title" | "card-text"
+        | "stat-value" | "stat-label" | "stat-change"
+        | "muted" | "subtle" | "hint"
+
+        // ── Surface ──
+        | "card" | "card-flat" | "card-raised" | "card-interactive" | "card-glass"
+        | "surface" | "surface-muted" | "surface-glass"
+
+        // ── Avatar ──
+        | "avatar" | "avatar-sm" | "avatar-lg" | "avatar-xl"
+        | "avatar-square" | "avatar-ring" | "avatar-group"
+
+        // ── Divider ──
+        | "divider" | "divider-vertical" | "divider-dashed" | "divider-dotted"
+
+        // ── Form ──
+        | "btn" | "btn-primary" | "btn-secondary" | "btn-ghost" | "btn-outline"
+        | "btn-danger" | "btn-success" | "btn-warning" | "btn-info"
+        | "btn-sm" | "btn-lg" | "btn-icon" | "btn-icon-sm" | "btn-block"
+        | "input" | "input-error" | "input-sm" | "input-lg"
+        | "textarea" | "select" | "label" | "field" | "help-text"
+
+        // ── Toggles ──
+        | "switch" | "checkbox" | "radio"
+
+        // ── Feedback ──
+        | "badge" | "badge-primary" | "badge-success" | "badge-danger"
+        | "badge-warning" | "badge-info" | "badge-muted" | "badge-dot"
+        | "chip"
+        | "alert" | "alert-info" | "alert-success" | "alert-danger" | "alert-warning"
+        | "toast" | "toast-success" | "toast-danger" | "toast-info" | "toast-warning"
+
+        // ── Progress ──
+        | "progress" | "progress-bar" | "progress-success" | "progress-danger"
+        | "progress-lg" | "progress-sm"
+        | "spinner" | "spinner-sm" | "spinner-lg"
+        | "skeleton" | "skeleton-text" | "skeleton-circle"
+
+        // ── Overlay ──
+        | "overlay" | "modal" | "modal-sm" | "modal-lg" | "modal-full"
+        | "tooltip" | "dropdown" | "dropdown-menu" | "dropdown-item"
+
+        // ── Navigation ──
+        | "navbar" | "navbar-sticky" | "navbar-brand" | "navbar-link"
+        | "site-header" | "site-footer"
+        | "sidebar" | "sidebar-item" | "sidebar-item-active"
+        | "breadcrumb" | "breadcrumb-item" | "breadcrumb-sep" | "breadcrumb-current"
+        | "pagination" | "page-item" | "page-item-active"
+        | "tabs" | "tab" | "tab-active"
+        | "stepper" | "step" | "step-active" | "step-complete" | "step-divider"
+
+        // ── Content ──
+        | "accordion" | "accordion-item" | "accordion-header" | "accordion-body"
+        | "table" | "table-striped" | "table-hover" | "table-bordered"
+        | "table-cell" | "table-head"
+        | "timeline" | "timeline-item"
+        | "stat" | "empty-state" | "rating" | "prose"
+
+        // ── Inline ──
+        | "code-inline" | "code-block"
+        | "link" | "link-muted" | "link-nav"
+        | "kbd"
+
+        // ── Interactive ──
+        | "interactive-primary" | "interactive-ghost" | "interactive-danger"
+        | "focus-ring"
+
+        // ── Decoration ──
+        | "glass" | "glow" | "gradient-primary" | "gradient-surface"
+        | "shimmer" | "divider-gap"
+    )
 }

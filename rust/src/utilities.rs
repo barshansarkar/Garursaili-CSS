@@ -140,6 +140,7 @@ pub fn generate(palette: &FxHashMap<String, String>) -> FxHashMap<String, String
     gen_more_colors(&mut m);
     crate::utilities_extended::generate_extended(&mut m);
     crate::utilities_v4::generate_v4(&mut m, palette);
+     crate::primitives::generate(&mut m); 
     m
 }
 

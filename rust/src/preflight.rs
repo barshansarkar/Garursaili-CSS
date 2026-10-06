@@ -88,7 +88,8 @@ const TOKENS: &str = r##"
   --garur-scrollbar-track: transparent;
   --garur-placeholder: color-mix(in oklab, currentColor 50%, transparent);
   --garur-smooth-scroll: auto;
-    /* ── Semantic color tokens (Rule 2) ── */
+
+  /* ── Semantic colors ── */
   --garur-primary:    #8657f7;
   --garur-secondary:  #647490;
   --garur-success:    #26944c;
@@ -106,14 +107,70 @@ const TOKENS: &str = r##"
   --garur-info-fg:      #ffffff;
   --garur-accent-fg:    #ffffff;
   --garur-muted-fg:     #ffffff;
+
+  /* ── Surface & foreground ── */
+  --garur-surface: #ffffff;
+  --garur-surface-muted: #f5f5f5;
+  --garur-fg: #1a1a1a;
+  --garur-subtle: #94a3b8;
+  --garur-hint: #cbd5e1;
+  --garur-border-subtle: rgb(0 0 0 / 0.1);
+
+  /* ── Radius scale ── */
+  --garur-radius-lg: 0.75rem;
+  --garur-radius-xl: 1rem;
+
+  /* ── Shadow scale ── */
+  --garur-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --garur-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --garur-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --garur-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --garur-shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  --garur-shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
+  --garur-shadow-ring: 0 0 0 3px color-mix(in oklab, var(--garur-primary) 20%, transparent);
+
+  /* ── Component sizing ── */
+  --garur-card-p: 1.5rem;
+  --garur-btn-py: 0.5rem;
+  --garur-btn-px: 1rem;
+  --garur-btn-fs: 0.875rem;
+  --garur-input-py: 0.5rem;
+  --garur-input-px: 0.75rem;
+  --garur-input-fs: 0.875rem;
+
+  /* ── Focus ring ── */
+  --garur-ring-color: var(--garur-primary);
+
+  /* ── Layout ── */
+  --garur-container-px: 1rem;
+  --garur-container-max: 1280px;
+  --garur-section-py: 5rem;
+  --garur-hero-py: 6rem;
+  --garur-navbar-py: 0.75rem;
+  --garur-grid-min: 16rem;
+  --garur-gap: 1rem;
 }
 
-/* Explicit dark preference (class or attribute) */
 :root.dark,
 :root[data-theme="dark"] {
   --garur-border: rgb(255 255 255 / 0.15);
   --garur-scrollbar-thumb: rgb(255 255 255 / 0.3);
   --garur-disabled-opacity: 0.4;
+
+  --garur-surface: #1e1e1e;
+  --garur-surface-muted: #2a2a2a;
+  --garur-fg: #f5f5f5;
+  --garur-subtle: #64748b;
+  --garur-hint: #475569;
+  --garur-muted: #9ca3af;
+  --garur-border-subtle: rgb(255 255 255 / 0.1);
+
+  --garur-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --garur-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
+  --garur-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+  --garur-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6);
+  --garur-shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.7);
+  --garur-shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.4);
 }
 "##;
 

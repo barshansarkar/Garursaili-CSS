@@ -14,6 +14,7 @@ mod engine;
 mod palette_default;
 mod plugin;
 mod preflight;
+mod primitives; 
 mod sanitize;
 mod ssc;
 mod utilities;

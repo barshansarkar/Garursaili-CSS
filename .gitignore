@@ -42,3 +42,4 @@ test-full.html
 test-*.html
 test-*.mjs
 bench-large.html
+ect/

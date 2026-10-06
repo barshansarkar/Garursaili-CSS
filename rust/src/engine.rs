@@ -893,34 +893,94 @@ fn apply_opacity(decl: &str, alpha: f64) -> String {
     parts.join(";")
 }
 
+fn find_matching_brace(s: &str, open: usize) -> Option<usize> {
+    let bytes = s.as_bytes();
+    if bytes.get(open) != Some(&b'{') { return None; }
+    let mut depth = 1i32;
+    let mut i = open + 1;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 { return Some(i); }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
 fn expand_nested_decls(decl: &str, selector: &str) -> String {
     if !decl.contains('&') {
         let mut s = String::with_capacity(selector.len() + decl.len() + 6);
         s.push_str(selector); s.push_str(" { "); s.push_str(decl); s.push_str("; }");
         return s;
     }
-    let mut out = String::with_capacity(decl.len() + selector.len() * 2 + 32);
-    let mut current = String::with_capacity(64);
-    let mut depth = 0;
-    for ch in decl.chars() {
-        if ch == '{' { depth += 1; }
-        current.push(ch);
-        if ch == '}' {
-            depth -= 1;
-            if depth == 0 {
-                if let Some(open) = current.find('{') {
-                    let child_sel = current[..open].trim();
-                    let child_decl = current[open + 1..current.len() - 1].trim();
-                    let final_sel = child_sel.replace('&', selector);
-                    out.push_str(&final_sel);
-                    out.push_str(" { ");
-                    out.push_str(child_decl);
-                    out.push_str(" }\n");
+
+    let mut out = String::with_capacity(decl.len() * 2);
+    let mut top_decls = String::with_capacity(decl.len());
+
+    let bytes = decl.as_bytes();
+    let mut i = 0usize;
+    let mut last_cut = 0usize;
+
+    while i < bytes.len() {
+        if bytes[i] == b'&' {
+            let block_open = match decl[i..].find('{') {
+                Some(p) => i + p,
+                None => break,
+            };
+            let block_close = match find_matching_brace(decl, block_open) {
+                Some(p) => p,
+                None => break,
+            };
+
+            let before = decl[last_cut..i].trim();
+            if !before.is_empty() {
+                if !top_decls.is_empty() && !top_decls.ends_with(';') {
+                    top_decls.push(';');
                 }
-                current.clear();
+                top_decls.push_str(before.trim_end_matches(';'));
+                top_decls.push(';');
             }
+
+            let child_sel_raw = decl[i..block_open].trim();
+            let child_decl = decl[block_open + 1..block_close].trim();
+            let final_sel = child_sel_raw.replace('&', selector);
+
+            out.push_str(&final_sel);
+            out.push_str(" { ");
+            out.push_str(child_decl);
+            out.push_str(" }\n");
+
+            i = block_close + 1;
+            last_cut = i;
+        } else {
+            i += 1;
         }
     }
+
+    let after = decl[last_cut..].trim();
+    if !after.is_empty() {
+        if !top_decls.is_empty() && !top_decls.ends_with(';') {
+            top_decls.push(';');
+        }
+        top_decls.push_str(after.trim_end_matches(';'));
+        top_decls.push(';');
+    }
+
+    if !top_decls.is_empty() {
+        let mut result = String::with_capacity(top_decls.len() + out.len() + selector.len() + 8);
+        result.push_str(selector);
+        result.push_str(" { ");
+        result.push_str(&top_decls);
+        result.push_str(" }\n");
+        result.push_str(&out);
+        return result.trim_end().to_string();
+    }
+
     out.trim_end().to_string()
 }
 
@@ -941,6 +1001,10 @@ fn keyframes_for_class(cls: &str) -> Option<&'static str> {
         "animate-slide-in-right" => Some("@keyframes garur-slide-in-right { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }"),
         "animate-zoom-in" => Some("@keyframes garur-zoom-in { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }"),
         "animate-zoom-out" => Some("@keyframes garur-zoom-out { from { transform: scale(1); opacity: 1; } to { transform: scale(0.95); opacity: 0; } }"),
+                "spinner" | "spinner-sm" | "spinner-lg" =>
+            Some("@keyframes garur-spin { to { transform: rotate(360deg); } }"),
+        "skeleton" | "skeleton-text" | "skeleton-circle" =>
+            Some("@keyframes garur-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }"),
         _ => None,
     }
 }
