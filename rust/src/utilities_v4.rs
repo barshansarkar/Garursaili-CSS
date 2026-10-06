@@ -12,6 +12,7 @@ pub fn generate_v4(m: &mut FxHashMap<String, String>, palette: &FxHashMap<String
     gen_bg_clip_fix(m);
     gen_keyframe_utilities(m);
     gen_extra_font_utilities(m);
+    gen_semantic_primitives(m); 
 }
 
 // ───────────────────────────────────────────────
@@ -221,4 +222,117 @@ fn gen_extra_font_utilities(m: &mut FxHashMap<String, String>) {
 
     m.entry("font-smoothing-auto".into())
         .or_insert_with(|| "-webkit-font-smoothing:auto".into());
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Rule 3 — Semantic layout primitives (SAFE additions)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Shorter, semantic replacements for common layout patterns.
+//
+// Examples:
+//   center         → flex + center on both axes
+//   stack          → flex column
+//   row            → flex row
+//   row-between    → flex row + space-between (nav bar pattern)
+//   cluster        → flex wrap (chips/badges)
+//   grid3          → grid with 3 equal columns
+//
+// SAFETY: All insertions use `.entry().or_insert_with()` — will NEVER
+// override an existing utility. This is purely additive.
+
+fn gen_semantic_primitives(m: &mut FxHashMap<String, String>) {
+    // ───────────────────────────────────────────────
+    // Flex containers — most common layouts
+    // ───────────────────────────────────────────────
+
+    // Both-axis centering (single most common need)
+    m.entry("center".into()).or_insert_with(|| 
+        "display:flex;align-items:center;justify-content:center".into());
+
+    // Horizontal flex (row)
+    m.entry("row".into()).or_insert_with(|| 
+        "display:flex;flex-direction:row".into());
+
+    m.entry("row-center".into()).or_insert_with(|| 
+        "display:flex;flex-direction:row;align-items:center".into());
+
+    m.entry("row-between".into()).or_insert_with(|| 
+        "display:flex;flex-direction:row;align-items:center;justify-content:space-between".into());
+
+    m.entry("row-around".into()).or_insert_with(|| 
+        "display:flex;flex-direction:row;align-items:center;justify-content:space-around".into());
+
+    m.entry("row-evenly".into()).or_insert_with(|| 
+        "display:flex;flex-direction:row;align-items:center;justify-content:space-evenly".into());
+
+    m.entry("row-start".into()).or_insert_with(|| 
+        "display:flex;flex-direction:row;align-items:center;justify-content:flex-start".into());
+
+    m.entry("row-end".into()).or_insert_with(|| 
+        "display:flex;flex-direction:row;align-items:center;justify-content:flex-end".into());
+
+    // Vertical flex (column / stack)
+    m.entry("stack".into()).or_insert_with(|| 
+        "display:flex;flex-direction:column".into());
+
+    m.entry("stack-center".into()).or_insert_with(|| 
+        "display:flex;flex-direction:column;align-items:center".into());
+
+    m.entry("stack-between".into()).or_insert_with(|| 
+        "display:flex;flex-direction:column;justify-content:space-between".into());
+
+    m.entry("stack-start".into()).or_insert_with(|| 
+        "display:flex;flex-direction:column;align-items:flex-start".into());
+
+    m.entry("stack-end".into()).or_insert_with(|| 
+        "display:flex;flex-direction:column;align-items:flex-end".into());
+
+    // Wrapping flex (chips, tags, badge groups)
+    m.entry("cluster".into()).or_insert_with(|| 
+        "display:flex;flex-direction:row;flex-wrap:wrap".into());
+
+    m.entry("cluster-center".into()).or_insert_with(|| 
+        "display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center".into());
+
+    // ───────────────────────────────────────────────
+    // Grid shortcuts — grid1 through grid12
+    // ───────────────────────────────────────────────
+    for n in 1..=12 {
+        m.entry(format!("grid{}", n)).or_insert_with(|| 
+            format!("display:grid;grid-template-columns:repeat({}, minmax(0, 1fr))", n));
+    }
+
+    // ───────────────────────────────────────────────
+    // Semantic text colors (uses runtime tokens)
+    // Override in :root { --garur-muted: ... }
+    // ───────────────────────────────────────────────
+    m.entry("muted".into()).or_insert_with(|| 
+        "color:var(--garur-muted, #647490)".into());
+
+    m.entry("subtle".into()).or_insert_with(|| 
+        "color:var(--garur-subtle, #6f7780)".into());
+
+    m.entry("hint".into()).or_insert_with(|| 
+        "color:var(--garur-hint, #939aa3)".into());
+
+    // ───────────────────────────────────────────────
+    // Font weight shortcuts (bare — no `font-` prefix)
+    // ───────────────────────────────────────────────
+    m.entry("heavy".into()).or_insert_with(|| "font-weight:700".into());
+    m.entry("semibold".into()).or_insert_with(|| "font-weight:600".into());
+    m.entry("medium".into()).or_insert_with(|| "font-weight:500".into());
+    m.entry("light".into()).or_insert_with(|| "font-weight:300".into());
+
+    // ───────────────────────────────────────────────
+    // Cursor shortcuts
+    // ───────────────────────────────────────────────
+    m.entry("not-allowed".into()).or_insert_with(|| "cursor:not-allowed".into());
+    m.entry("grabbable".into()).or_insert_with(|| "cursor:grab".into());
+    m.entry("grabbing".into()).or_insert_with(|| "cursor:grabbing".into());
+
+    // ───────────────────────────────────────────────
+    // Misc semantic
+    // ───────────────────────────────────────────────
+    m.entry("square".into()).or_insert_with(|| "aspect-ratio:1/1".into());
 }
