@@ -122,6 +122,9 @@ pub struct GarurConfig {
     pub dark_mode: String,
     pub important: bool,
     pub targets: Vec<String>,
+    // ✨ Rule 2: Semantic colors (optional)
+    pub semantic_colors: bool,
+    pub semantic_overrides: FxHashMap<String, String>,
 }
 
 impl Default for GarurConfig {
@@ -137,6 +140,8 @@ impl Default for GarurConfig {
             dark_mode: "class".into(),
             important: false,
             targets: vec!["> 0.5%".into(), "last 2 versions".into(), "not dead".into()],
+            semantic_colors: false,          // ← default OFF (optional)
+            semantic_overrides: FxHashMap::default(),
         }
     }
 }
@@ -149,6 +154,11 @@ struct ConfigJson {
     important: Option<bool>,
     palette: Option<FxHashMap<String, serde_json::Value>>,
     targets: Option<Vec<String>>,
+    // ✨ Rule 2
+    #[serde(rename = "semanticColors")]
+    semantic_colors: Option<bool>,
+    #[serde(rename = "semanticOverrides")]
+    semantic_overrides: Option<FxHashMap<String, String>>,
 }
 
 // ─── Lock-free global state ───
@@ -201,6 +211,9 @@ pub fn init_config(json: &str) -> Result<(), String> {
     if let Some(dm) = parsed.dark_mode { cfg.dark_mode = dm; }
     if let Some(imp) = parsed.important { cfg.important = imp; }
     if let Some(t) = parsed.targets { cfg.targets = t; }
+    // ✨ Rule 2
+    if let Some(sc) = parsed.semantic_colors { cfg.semantic_colors = sc; }
+    if let Some(so) = parsed.semantic_overrides { cfg.semantic_overrides = so; }
     CONFIG.store(Arc::new(cfg));
 
     let user_extra = parsed.palette.as_ref().map(|p| p.len()).unwrap_or(0);
@@ -255,22 +268,52 @@ pub fn init_handler(json: &str) -> Result<(), String> {
 fn regenerate_utils(palette: &FxHashMap<String, String>) {
     use xxhash_rust::xxh3::xxh3_64;
 
+    // ── Load config flags BEFORE hash (they affect generated utils) ──
+    let cfg = CONFIG.load_full();
+    let semantic_on = cfg.semantic_colors;
+
+    // ── Build hash from: palette + semantic flag + overrides ──
     let mut keys: Vec<&String> = palette.keys().collect();
     keys.sort();
-    let mut buf = String::with_capacity(palette.len() * 24);
+    let mut buf = String::with_capacity(palette.len() * 24 + 64);
     for k in keys {
         buf.push_str(k);
         buf.push('=');
         buf.push_str(&palette[k]);
         buf.push(';');
     }
+
+    // ✨ Include semantic colors in hash
+    if semantic_on {
+        buf.push_str("|sem=true|");
+        let mut okeys: Vec<&String> = cfg.semantic_overrides.keys().collect();
+        okeys.sort();
+        for k in okeys {
+            buf.push_str(k);
+            buf.push('=');
+            buf.push_str(&cfg.semantic_overrides[k]);
+            buf.push(';');
+        }
+    } else {
+        buf.push_str("|sem=false|");
+    }
+
     let new_hash = xxh3_64(buf.as_bytes());
 
     let changed = PALETTE_HASH.load(Ordering::Relaxed) != new_hash;
     let utils_empty = UTILS.load().is_empty();
-    if !changed && !utils_empty { return; }
+    if !changed && !utils_empty {
+        return;
+    }
 
+    // ── Regenerate ──
     let mut map = utilities::generate(palette);
+
+    // ✨ Rule 2: Add semantic colors if enabled
+    if semantic_on {
+        add_semantic_colors(&mut map, &cfg.semantic_overrides);
+    }
+
     plugin::merge_into(&mut map);
 
     UTILS.store(Arc::new(map));
@@ -278,6 +321,97 @@ fn regenerate_utils(palette: &FxHashMap<String, String>) {
     PALETTE_HASH.store(new_hash, Ordering::Relaxed);
 }
 
+
+
+// ═══════════════════════════════════════════════════════════════════
+// Rule 2 — Semantic color utilities (optional, opt-in)
+// ═══════════════════════════════════════════════════════════════════
+//
+// User enables via garur.config.js:
+//   export default { semanticColors: true }
+//
+// Optional overrides:
+//   export default {
+//     semanticColors: true,
+//     semanticOverrides: {
+//       primary: '#ff0099',
+//       success: '#10b981'
+//     }
+//   }
+//
+// Generated utilities reference CSS variables, so users can also
+// override at runtime via :root { --garur-primary: #ff0099; }
+
+fn add_semantic_colors(
+    m: &mut FxHashMap<String, String>,
+    overrides: &FxHashMap<String, String>,
+) {
+    // (name, default-color, default-foreground)
+    const SEMANTIC: &[(&str, &str, &str)] = &[
+        ("primary",   "#8657f7", "#ffffff"),  // iris-500
+        ("secondary", "#647490", "#ffffff"),  // void-500
+        ("success",   "#26944c", "#ffffff"),  // forest-500
+        ("danger",    "#d12a3d", "#ffffff"),  // ruby-600
+        ("warning",   "#f59e00", "#1e1e1e"),  // honey-500 (dark text on light)
+        ("info",      "#1a8ade", "#ffffff"),  // sky-500
+        ("accent",    "#e54cb5", "#ffffff"),  // plum-500
+        ("muted",     "#6f7780", "#ffffff"),  // ash-500
+    ];
+
+    for (name, default_color, default_fg) in SEMANTIC {
+        let color = overrides.get(*name).map(|s| s.as_str()).unwrap_or(default_color);
+        let fg = overrides
+            .get(&format!("{}-fg", name))
+            .map(|s| s.as_str())
+            .unwrap_or(default_fg);
+
+        // Use CSS variables so users can override at runtime too
+        let css_var = format!("var(--garur-{}, {})", name, color);
+        let fg_var = format!("var(--garur-{}-fg, {})", name, fg);
+        let hover_var = format!("var(--garur-{}-hover, color-mix(in oklab, {} 85%, black))", name, css_var);
+        let subtle_var = format!("var(--garur-{}-subtle, color-mix(in oklab, {} 15%, transparent))", name, css_var);
+
+        // ─── Background ───
+        m.insert(format!("bg-{}", name), format!("background-color:{}", css_var));
+        m.insert(format!("bg-{}-hover", name), format!("background-color:{}", hover_var));
+        m.insert(format!("bg-{}-subtle", name), format!("background-color:{}", subtle_var));
+
+        // ─── Text ───
+        m.insert(format!("text-{}", name), format!("color:{}", css_var));
+        m.insert(format!("text-{}-fg", name), format!("color:{}", fg_var));
+
+        // ─── Border ───
+        m.insert(format!("border-{}", name), format!("border-color:{}", css_var));
+
+        // ─── Ring ───
+        m.insert(format!("ring-{}", name), format!("--garur-ring-color:{}", css_var));
+
+        // ─── Outline ───
+        m.insert(format!("outline-{}", name), format!("outline-color:{}", css_var));
+
+        // ─── Fill / Stroke (SVG) ───
+        m.insert(format!("fill-{}", name), format!("fill:{}", css_var));
+        m.insert(format!("stroke-{}", name), format!("stroke:{}", css_var));
+
+        // ─── Decoration ───
+        m.insert(format!("decoration-{}", name), format!("text-decoration-color:{}", css_var));
+
+        // ─── Caret / Accent ───
+        m.insert(format!("caret-{}", name), format!("caret-color:{}", css_var));
+        m.insert(format!("accent-{}", name), format!("accent-color:{}", css_var));
+
+        // ─── Gradient stops ───
+        m.insert(format!("from-{}", name), format!("--garur-gradient-from:{}", css_var));
+        m.insert(format!("via-{}", name),  format!("--garur-gradient-via:{}", css_var));
+        m.insert(format!("to-{}", name),   format!("--garur-gradient-to:{}", css_var));
+
+        // ─── Divide (border between children) ───
+        m.insert(
+            format!("divide-{}", name),
+            format!("& > :not([hidden]) ~ :not([hidden]) {{ border-color:{}; }}", css_var),
+        );
+    }
+}
 
 // ───────────────────────────────────────────────
 // File extraction cache — hash-keyed
@@ -918,6 +1052,12 @@ fn build_inner(cls: &str, inline: bool) -> Option<Arc<str>> {
                 if inline { return Some(Arc::from(d.as_str())); }
                 return Some(render_simple(cls, d));
             }
+
+            // ✨ Easy Mode: color default shade
+            if let Some(d) = try_color_default(base, &utils) {
+                if inline { return Some(Arc::from(d.as_str())); }
+                return Some(render_simple(cls, &d));
+            }
         }
 
         // Dynamic spacing (handles negation)
@@ -1099,6 +1239,7 @@ fn build_inner(cls: &str, inline: bool) -> Option<Arc<str>> {
         }
     } else {
         utils.get(&base).cloned()
+            .or_else(|| try_color_default(&base, &utils))
     };
     drop(utils);
 
@@ -1159,7 +1300,64 @@ fn build_inner(cls: &str, inline: bool) -> Option<Arc<str>> {
 // ───────────────────────────────────────────────
 // Dynamic spacing — ordered by frequency
 // ───────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// Easy Mode — Rule 1: Color default shade resolution
+// ═══════════════════════════════════════════════════════════════════
+//
+//   bg-iris      → bg-iris-500   (default shade)
+//   bg-iris-6    → bg-iris-600   (1-digit → x00)
+//   bg-iris-95   → bg-iris-950   (special case)
+//
+// Works for every color utility: bg, text, border, fill, stroke,
+// ring, outline, decoration, from, via, to, divide, accent, caret.
 
+fn try_color_default(base: &str, utils: &FxHashMap<String, String>) -> Option<String> {
+    // Skip if base is empty or contains chars that can't be colors
+    if base.is_empty() || base.contains('/') || base.contains('[') {
+        return None;
+    }
+
+    // ── Case 1: "bg-iris" → "bg-iris-500"
+    let cand = format!("{}-500", base);
+    if let Some(d) = utils.get(&cand) {
+        return Some(d.clone());
+    }
+
+    // ── Case 2 & 3: base ends with "-N" or "-95"
+    let dash = base.rfind('-')?;
+    let prefix = &base[..dash];      // e.g. "bg-iris"
+    let suffix = &base[dash + 1..];  // e.g. "6" or "95"
+
+    // Skip empty prefix/suffix
+    if prefix.is_empty() || suffix.is_empty() {
+        return None;
+    }
+
+    // Case 2: single digit 1-9 → expand to x00
+    //   "bg-iris-6"  → "bg-iris-600"
+    //   "bg-void-8"  → "bg-void-800"
+    if suffix.len() == 1 {
+        if let Some(n) = suffix.chars().next().and_then(|c| c.to_digit(10)) {
+            if (1..=9).contains(&n) {
+                let cand = format!("{}-{}00", prefix, n);
+                if let Some(d) = utils.get(&cand) {
+                    return Some(d.clone());
+                }
+            }
+        }
+    }
+
+    // Case 3: "95" → "950"
+    //   "bg-sand-95" → "bg-sand-950"
+    if suffix == "95" {
+        let cand = format!("{}-950", prefix);
+        if let Some(d) = utils.get(&cand) {
+            return Some(d.clone());
+        }
+    }
+
+    None
+}
 fn try_dynamic_spacing(stripped: &str, neg: bool) -> Option<String> {
         // ── Plain-numeric utilities (NO spacing multiplier) ──
     // These use raw number, not calc(var(--spacing) * N)

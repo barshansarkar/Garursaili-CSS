@@ -88,6 +88,24 @@ const TOKENS: &str = r##"
   --garur-scrollbar-track: transparent;
   --garur-placeholder: color-mix(in oklab, currentColor 50%, transparent);
   --garur-smooth-scroll: auto;
+    /* ── Semantic color tokens (Rule 2) ── */
+  --garur-primary:    #8657f7;
+  --garur-secondary:  #647490;
+  --garur-success:    #26944c;
+  --garur-danger:     #d12a3d;
+  --garur-warning:    #f59e00;
+  --garur-info:       #1a8ade;
+  --garur-accent:     #e54cb5;
+  --garur-muted:      #6f7780;
+
+  --garur-primary-fg:   #ffffff;
+  --garur-secondary-fg: #ffffff;
+  --garur-success-fg:   #ffffff;
+  --garur-danger-fg:    #ffffff;
+  --garur-warning-fg:   #1e1e1e;
+  --garur-info-fg:      #ffffff;
+  --garur-accent-fg:    #ffffff;
+  --garur-muted-fg:     #ffffff;
 }
 
 /* Explicit dark preference (class or attribute) */
