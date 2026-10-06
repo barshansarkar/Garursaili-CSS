@@ -1,35 +1,31 @@
-
-// GarurSaili-CSS — birun docs theme
+// garur.config.js
 export default {
+  // Breakpoints (optional — Rust has defaults)
   breakpoints: {
-    sm: "640px",
-    md: "768px",
-    lg: "1024px",
-    xl: "1280px",
-    "2xl": "1536px",
+    sm: '640px',
+    md: '768px',
+    lg: '1024px',
+    xl: '1280px',
+    '2xl': '1536px',
   },
-  darkMode: "class",
+
+  darkMode: 'class',
   important: false,
+
+  // ✨ Rule 2: Semantic colors
+  semanticColors: true,
+  semanticOverrides: {
+    primary: '#ff0099',   // your brand
+    success: '#10b981',
+    danger:  '#ef4444',
+  },
+
+  // Optional: additional palette colors (merged with Rust's 343)
   palette: {
-    ink:       "#14100d",
-    bg:        "#1c1814",
-    bg2:       "#221c17",
-    surface:   "#2a231d",
-    surface2:  "#332a22",
-    border:    "#3d332a",
-    border2:   "#514438",
-    cream:     "#ece3d4",
-    parchment: "#d9cdb9",
-    sand:      "#a89785",
-    stone:     "#7a6b5d",
-    ember:     "#5a4d42",
-    rust:      "#c25a3c",
-    copper:    "#d97742",
-    amber:     "#d4a35c",
-    gold:      "#e5c07b",
-    sage:      "#8ba368",
-    olive:     "#6b7a4a",
-    wine:      "#9c4a44",
-    rust2:     "#a8492f",
+    brand: {
+      50:  '#fff0f6',
+      500: '#ff0099',
+      900: '#66003d',
+    },
   },
 };
