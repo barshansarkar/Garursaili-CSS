@@ -13,12 +13,22 @@ import { execSync } from "node:child_process";
 import pc from "picocolors";
 import { loadConfig, applyConfig } from "./config.js";
 import { hasNative, nativeVersion, runSscWithStats, findFiles, minifyCss, exportCache, importCache, } from "./native.js";
+import { fileURLToPath } from "node:url";
+// Read version from GarurSaili-CSS's OWN package.json — not the user's cwd.
 const VERSION = (() => {
     try {
-        const pkgPath = path.resolve(process.cwd(), "package.json");
-        if (fs.existsSync(pkgPath)) {
-            const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-            return pkg.version || "1.4.0";
+        const here = path.dirname(fileURLToPath(import.meta.url));
+        const candidates = [
+            path.resolve(here, "../package.json"), // dist/cli.js → ./package.json
+            path.resolve(here, "../../package.json"), // for nested dist
+        ];
+        for (const pkgPath of candidates) {
+            if (fs.existsSync(pkgPath)) {
+                const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+                if (pkg.name === "garursaili-css") {
+                    return pkg.version || "1.4.0";
+                }
+            }
         }
     }
     catch { /* ignore */ }
@@ -985,9 +995,10 @@ async function main() {
     // ─── Build / Watch ───
     const cwd = process.cwd();
     const KNOWN_CMDS = new Set([
-        "init", "example", "all", "clean", "native", "help", "version", "watch",
-        "doctor", "stats", "analyze", "format", "benchmark", "upgrade", "preview",
-        "config", "cache-stats", "cache-stats-reset",
+        "build", "watch", "init", "example", "all", "clean", "native",
+        "help", "version", "doctor", "stats", "analyze", "format",
+        "benchmark", "upgrade", "preview", "config",
+        "cache-stats", "cache-stats-reset",
     ]);
     const positionalPatterns = args._.filter((a) => typeof a === "string" && !KNOWN_CMDS.has(a));
     const includes = positionalPatterns.length
