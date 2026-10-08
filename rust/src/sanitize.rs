@@ -1,7 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════
 // Sanitizer — prevents CSS injection through arbitrary values
 // ═══════════════════════════════════════════════════════════════════
-
+// ═══════════════════════════════════════════════════════════════════
+// GarurSaili-CSS 
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
+// ═══════════════════════════════════════════════════════════════════
 /// Returns true if an arbitrary CSS value is safe to embed in a declaration.
 pub fn is_safe_arbitrary(v: &str) -> bool {
     if v.is_empty() { return false; }

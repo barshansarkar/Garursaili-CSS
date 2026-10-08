@@ -1,17 +1,20 @@
 // ═══════════════════════════════════════════════════════════════════
 // GarurSaili-CSS — SSC (SUPER SONIC CYCLONE)
 // ═══════════════════════════════════════════════════════════════════
-
+// ═══════════════════════════════════════════════════════════════════
+// GarurSaili-CSS 
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
+// ═══════════════════════════════════════════════════════════════════
 use crate::css_input;
 use crate::engine;
 use crate::preflight;
 use globset::GlobSetBuilder;
-// use memmap2::Mmap;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-// use std::fs::File;
 use walkdir::WalkDir;
 
 #[derive(Clone, Copy)]
@@ -39,7 +42,6 @@ pub fn run_with_options(files: &[String], config_json: &str, opts: SscOptions) -
         else { markup_files.push(p.as_str()); }
     }
 
-    // Read + parse @theme from CSS files
     let mut theme_tokens = css_input::ThemeTokens::default();
     let mut css_sources: Vec<(String, String)> = Vec::with_capacity(css_files.len());
 
@@ -62,8 +64,6 @@ pub fn run_with_options(files: &[String], config_json: &str, opts: SscOptions) -
         }
     }
 
-    // Parallel extract classes
-    // ⚡ Parallel file-hash-cached extraction
     let class_sets: Vec<std::sync::Arc<Vec<String>>> = markup_files
         .par_iter()
         .filter_map(|p| engine::extract_cached(p))
@@ -76,7 +76,6 @@ pub fn run_with_options(files: &[String], config_json: &str, opts: SscOptions) -
         all_classes.extend_from_slice(&set);
     }
 
-    // Dedup via borrow set (avoids one allocation per duplicate)
     let mut unique: Vec<String> = {
         let mut seen = rustc_hash::FxHashSet::default();
         let mut v = Vec::with_capacity(all_classes.len());
@@ -89,10 +88,10 @@ pub fn run_with_options(files: &[String], config_json: &str, opts: SscOptions) -
         class_priority(a).cmp(&class_priority(b)).then_with(|| a.cmp(b))
     });
 
-let rules: Vec<(String, std::sync::Arc<str>)> = unique
-    .par_iter()
-    .filter_map(|cls| engine::build(cls, false).map(|r| (cls.clone(), r)))
-    .collect();
+    let rules: Vec<(String, std::sync::Arc<str>)> = unique
+        .par_iter()
+        .filter_map(|cls| engine::build(cls, false).map(|r| (cls.clone(), r)))
+        .collect();
 
     let mut base_blocks: Vec<String> = Vec::with_capacity(rules.len());
     let mut keyframes_seen: rustc_hash::FxHashSet<String> = rustc_hash::FxHashSet::default();
@@ -101,7 +100,7 @@ let rules: Vec<(String, std::sync::Arc<str>)> = unique
     let mut order: Vec<String> = Vec::with_capacity(rules.len());
 
     for (_, rule) in &rules {
-        for chunk in split_top_level(rule.as_ref())  {
+        for chunk in split_top_level(rule.as_ref()) {
             let trimmed = chunk.trim();
             if trimmed.is_empty() { continue; }
 
@@ -180,7 +179,9 @@ let rules: Vec<(String, std::sync::Arc<str>)> = unique
     let mut parts: Vec<String> = Vec::with_capacity(8 + media_blocks.len());
     parts.push(preflight::layer().to_string());
     parts.push(preflight::properties().to_string());
-    if opts.preflight { parts.push(preflight::preflight()); }
+    if opts.preflight {
+    parts.push(preflight::preflight_arc().as_ref().to_string());
+}
     if !base_blocks.is_empty() { parts.push(base_blocks.join("\n\n")); }
 
     let mut media_keys: Vec<String> = media_blocks.keys().cloned().collect();
@@ -284,7 +285,6 @@ fn split_top_level(rule: &str) -> Vec<String> {
 }
 
 fn extract_media(rule: &str) -> (Option<String>, String) {
-    // ── @media ──
     if rule.starts_with("@media") {
         if let Some(open) = rule.find('{') {
             let raw = rule[6..open].trim();
@@ -296,13 +296,11 @@ fn extract_media(rule: &str) -> (Option<String>, String) {
         }
     }
 
-    // ── @container ──
     if rule.starts_with("@container") {
         if let Some(open) = rule.find('{') {
-            let header = rule[10..open].trim();  // after "@container"
+            let header = rule[10..open].trim();
             let inner  = rule[open + 1..].trim_end_matches('}').trim().to_string();
 
-            // Case A: NESTED — "@container NAME { @container (query) { body } }"
             if !header.starts_with('(') && inner.starts_with("@container") {
                 if let Some(inner_open) = inner.find('{') {
                     let inner_header = inner[10..inner_open].trim();
@@ -314,7 +312,6 @@ fn extract_media(rule: &str) -> (Option<String>, String) {
                 }
             }
 
-            // Case B: NAMED + CONDITION — "@container NAME (query) { body }"
             if let Some(space) = header.find(' ') {
                 let name = &header[..space];
                 let rest = header[space..].trim();
@@ -324,7 +321,6 @@ fn extract_media(rule: &str) -> (Option<String>, String) {
                 }
             }
 
-            // Case C: CONDITION-ONLY — "@container (query) { body }"
             if header.starts_with('(') && header.ends_with(')') {
                 let cond = &header[1..header.len() - 1];
                 return (Some(format!("container ({})", cond)), inner);
@@ -334,6 +330,7 @@ fn extract_media(rule: &str) -> (Option<String>, String) {
 
     (None, rule.to_string())
 }
+
 fn split_selector_decl(rule: &str) -> (String, String) {
     if let Some(open) = rule.find('{') {
         if let Some(close) = rule.rfind('}') {
@@ -342,10 +339,6 @@ fn split_selector_decl(rule: &str) -> (String, String) {
     }
     (String::new(), String::new())
 }
-
-// ───────────────────────────────────────────────
-// Brace expansion + file finder
-// ───────────────────────────────────────────────
 
 fn expand_braces(pattern: &str) -> Vec<String> {
     let bytes = pattern.as_bytes();
@@ -458,11 +451,6 @@ pub fn cache_decode(data: &[u8]) -> Result<String, String> {
     serde_json::to_string(&cache).map_err(|e| format!("cache json: {}", e))
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Cascade priority — lower numbers come FIRST in output CSS,
-// so later-declared rules override earlier ones.
-// ═══════════════════════════════════════════════════════════════════
-
 #[inline]
 fn class_priority(cls: &str) -> u8 {
     if is_primitive(cls) { return 1; }
@@ -472,10 +460,288 @@ fn class_priority(cls: &str) -> u8 {
     2
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// is_primitive — marks classes that should appear FIRST in output
+// ═══════════════════════════════════════════════════════════════════
+
 fn is_primitive(cls: &str) -> bool {
+    // ═══════════════════════════════════════════════════════════════
+    // ⭐ INTENT SHORTHANDS
+    // ═══════════════════════════════════════════════════════════════
+
+    // ── Layout ──
+    if matches!(cls,
+        "mid" | "mid-x" | "mid-y" | "mid-screen" |
+        "apart" | "apart-mid" | "even" | "around" |
+        "chips" | "auto-grid" | "masonry-lite" |
+        "jumbo" | "section-air" | "section-tight" |
+        "row-tight" | "stack-tight"
+    ) { return true; }
+
+    if cls.starts_with("row-") || cls.starts_with("stack-")
+        || cls.starts_with("wrap-") || cls.starts_with("centered-")
+        || cls.starts_with("cols-") {
+        return true;
+    }
+
+    // ── Position ──
+    if matches!(cls,
+        "pinned" | "pinned-blur" | "pinned-bottom" |
+        "docked-top" | "docked-bottom" | "docked-left" | "docked-right" |
+        "overlay-full" | "overlay-screen" | "overlay-dim" |
+        "tucked" | "tucked-tl" | "tucked-bl" | "tucked-br" |
+        "centered-abs" | "above" | "above-all" | "behind"
+    ) { return true; }
+
+    // ── Visual ──
+    if matches!(cls,
+        "rise" | "rise-sm" | "rise-lg" | "sunken" | "flat" |
+        "faded" | "dim" | "ghosted" | "solid" |
+        "smooth" | "quick" | "lazy" |
+        "grow" | "shrink" | "lift" | "press" | "glow-up" |
+        "aurora" | "mist" |
+        "outlined" | "dashed" | "dotted"
+    ) { return true; }
+
+    // ── Feedback ──
+    if matches!(cls,
+        "clickable" | "tappable" | "locked" | "draggable" | "busy" |
+        "alive" | "dead" | "busy-dot"
+    ) { return true; }
+
+    if cls.starts_with("tag-") { return true; }
+
+    // ── Content ──
+    if matches!(cls,
+        "clip" | "balance" | "pretty" | "ghost" | "unghost" |
+        "tiny" | "small" | "body" | "lead" |
+        "title" | "headline" | "display" | "banner" |
+        "quiet" | "subtle-text" | "strong" |
+        "hr" | "hr-text"
+    ) { return true; }
+
+    if cls.starts_with("fit-") { return true; }
+
+    // ── Form ──
+    if matches!(cls,
+        "invalid" | "valid" | "field-ro" |
+        "cta" | "cta-soft" | "cta-ghost" | "textfield"
+    ) { return true; }
+
+    // ── Indian ──
+    if matches!(cls,
+        "namaste" | "lotus" | "banyan" | "rangoli" | "mehndi" |
+        "diya" | "tilak" | "ghat" |
+        "tandava" | "lasya" | "chakra" |
+        "monsoon" | "saffron"
+    ) { return true; }
+
+    // ═══════════════════════════════════════════════════════════════
+    // TIER B — Extended Intent
+    // ═══════════════════════════════════════════════════════════════
+
+    if matches!(cls,
+        "status-online" | "status-away" | "status-busy" |
+        "status-offline" | "status-alive"
+    ) { return true; }
+
+    if matches!(cls, "trend-up" | "trend-down" | "trend-flat") { return true; }
+
+    if matches!(cls,
+        "notification-dot" | "notification-badge" | "notify-wrap"
+    ) { return true; }
+
+    if matches!(cls,
+        "menu" | "menu-item" | "menu-item-active" |
+        "menu-divider" | "menu-label"
+    ) { return true; }
+
+    if matches!(cls,
+        "hamburger" | "drawer" | "drawer-right" | "drawer-overlay"
+    ) { return true; }
+
+    if matches!(cls,
+        "search" | "search-input" | "search-icon" |
+        "search-clear" | "search-result"
+    ) { return true; }
+
+    if matches!(cls, "shortcut" | "kbd-group" | "kbd-sep") { return true; }
+
+    if matches!(cls,
+        "rating" | "rating-stars" | "rating-count" | "rating-value"
+    ) { return true; }
+
+    if matches!(cls,
+        "price" | "price-lg" | "price-old" | "price-discount"
+    ) { return true; }
+
+    if matches!(cls,
+        "comment" | "comment-avatar" | "comment-body" |
+        "comment-author" | "comment-time" | "comment-text"
+    ) { return true; }
+
+    if matches!(cls,
+        "testimonial" | "testimonial-quote" | "testimonial-author" |
+        "testimonial-name" | "testimonial-role"
+    ) { return true; }
+
+    if matches!(cls,
+        "post-card" | "post-meta" | "post-title" | "post-excerpt"
+    ) { return true; }
+
+    if cls == "divider-text" { return true; }
+
+    if matches!(cls,
+        "video-wrapper" | "image-cover" | "gallery" |
+        "gallery-item" | "gallery-overlay"
+    ) { return true; }
+
+    if matches!(cls,
+        "loader" | "loader-lg" | "loading-overlay" | "loading-dots"
+    ) { return true; }
+
+    if matches!(cls,
+        "error-state" | "success-state" | "empty-state-icon"
+    ) { return true; }
+
+    if matches!(cls,
+        "stack-mobile" | "hide-mobile" | "show-mobile" |
+        "only-mobile" | "hide-desktop"
+    ) { return true; }
+
+    // ═══════════════════════════════════════════════════════════════
+    // COMPAT SHORTHANDS
+    // ═══════════════════════════════════════════════════════════════
+
+    if matches!(cls, "iblock" | "iflex" | "igrid") { return true; }
+
+    if matches!(cls,
+        "jc-center" | "jc-between" | "jc-around" | "jc-evenly" | "jc-start" | "jc-end"
+        | "ai-center" | "ai-baseline" | "ai-start" | "ai-end" | "ai-stretch"
+        | "as-center" | "as-start" | "as-end"
+        | "ac-between" | "ac-center" | "ac-around"
+        | "fx-1" | "fx-auto" | "fx-none" | "fx-init"
+    ) { return true; }
+
+    if cls.starts_with("gx-") || cls.starts_with("gy-") { return true; }
+
+    if matches!(cls,
+        "minw-0" | "minw-full" | "maxw-full"
+        | "minh-0" | "minh-full" | "minh-screen" | "maxh-screen"
+        | "sz-full"
+    ) { return true; }
+
+    if cls.starts_with("sz-") || cls.starts_with("maxw-") { return true; }
+
+    if cls.starts_with("gc-") || cls.starts_with("gr-")
+        || cls.starts_with("cs-") || cls.starts_with("rs-") {
+        return true;
+    }
+
+    if matches!(cls,
+        "sh" | "sh-sm" | "sh-md" | "sh-lg" | "sh-xl" | "sh-none"
+    ) { return true; }
+
+    if cls.starts_with("op-") || cls.starts_with("dur-") { return true; }
+
+    if cls.starts_with("cur-") { return true; }
+    if matches!(cls, "sel-n" | "sel-t" | "sel-all") { return true; }
+
+    if matches!(cls,
+        "ar-video" | "ar-square" | "ar-photo" | "ar-portrait" | "ar-wide"
+        | "ob-cover" | "ob-contain" | "ob-fill" | "ob-none"
+    ) { return true; }
+
+    // ═══════════════════════════════════════════════════════════════
+    // WEB KIT
+    // ═══════════════════════════════════════════════════════════════
+
+    if matches!(cls,
+        "mesh-bg" | "grid-bg" | "noise-overlay" |
+        "orb" | "orb-iris" | "orb-pink" | "orb-warm" |
+        "float-slow" | "float-slower" |
+        "gradient-text" | "glow-border" | "frosted" |
+        "glass-pill" | "pill-dot" | "pulse-ring" |
+        "display-hero" | "display-section" | "stat-num" |
+        "btn-hero" | "btn-hero-primary" | "btn-hero-secondary" |
+        "code-window" | "window-header" | "code-body" |
+        "dot-red" | "dot-yellow" | "dot-green" |
+        "syn-tag" | "syn-attr" | "syn-str" | "syn-punc" |
+        "marquee" | "fade-edges" |
+        "section-sm" | "section-lg" |
+        "bento" | "bento-4" | "bento-6" | "bento-8" | "bento-12" |
+        "faq-item" | "faq-q" | "faq-a" |
+        "scrollbar-dark" | "selection-iris" |
+        "inline-code"
+    ) { return true; }
+
+    // ═══════════════════════════════════════════════════════════════
+    // TIER B PRIMITIVES
+    // ═══════════════════════════════════════════════════════════════
+
+    if matches!(cls,
+        "card-header" | "card-body" | "card-footer" |
+        "card-media" | "card-overlay" | "card-actions"
+    ) { return true; }
+
+    if matches!(cls,
+        "modal-header" | "modal-body" | "modal-footer" | "modal-close"
+    ) { return true; }
+
+    if matches!(cls,
+        "form-group" | "form-row" | "input-group" | "input-icon" |
+        "field-label" | "field-hint" | "field-error" | "field-success"
+    ) { return true; }
+
+    if matches!(cls,
+        "product-card" | "cart-item" | "cart-item-image" | "cart-item-info"
+    ) { return true; }
+
+    if matches!(cls,
+        "empty-state-icon" | "avatar-group-count"
+    ) { return true; }
+
+    // ═══════════════════════════════════════════════════
+    if matches!(cls,
+    // PREMIUM kit — spotlight
+    "spotlight" | "spotlight-sm" | "spotlight-lg" |
+    "spotlight-white" | "spotlight-pink" |
+    // gradient borders
+    "border-gradient" | "border-gradient-hover" |
+    "border-gradient-iris" | "border-gradient-pink" |
+    "border-gradient-blue" | "border-gradient-emerald" |
+    "border-beam" | "card-gradient" |
+    // colored glows
+    "glow-iris" | "glow-pink" | "glow-blue" |
+    "glow-emerald" | "glow-amber" | "glow-ruby" |
+    "glow-white" | "glow-soft" |
+    "glow-inner-iris" | "glow-inner-white" |
+    "text-glow-iris" | "text-glow-white" |
+    // terminal
+    "terminal-prompt" | "cursor-blink" | "terminal-cursor" |
+    "terminal-line" | "terminal-ok" | "terminal-warn" |
+    "terminal-err" | "terminal-dim" |
+    // Garur display typography
+    "hero-garur" | "display-garur" |
+    "section-garur" | "section-garur-sm" |
+    "title-garur" | "lead-garur" |
+    // animated backgrounds
+    "dot-grid" | "dot-grid-lg" | "aurora-bg" |
+    "beam" | "beam-white" | "scan-line" |
+    "radial-fade" | "top-fade" | "bottom-fade" | "spot-glow" |
+    // hover effects
+    "hover-glow" | "hover-glow-soft" |
+    "hover-lift" | "hover-lift-sm" |
+    "hover-scale" | "hover-scale-sm" |
+    "hover-bright" | "hover-bright-sm" | "hover-tilt" |
+    // marquee variants
+    "marquee-slow" | "marquee-fast" |
+    "marquee-reverse" | "marquee-pause" |
+    // shine
+    "shine" | "shine-always" | "shine-border"
+) { return true; }
     matches!(
         cls,
-        // ── Layout shortcuts ──
         "center" | "center-x"
         | "row" | "row-center" | "row-between" | "row-around" | "row-evenly" | "row-start" | "row-end"
         | "stack" | "stack-center" | "stack-between" | "stack-start" | "stack-end"
@@ -484,66 +750,42 @@ fn is_primitive(cls: &str) -> bool {
         | "grid-1" | "grid-2" | "grid-3" | "grid-4" | "grid-5" | "grid-6"
         | "grid-7" | "grid-8" | "grid-9" | "grid-10" | "grid-11" | "grid-12"
         | "grid-auto" | "grid-auto-fill" | "split" | "spacer"
-
-        // ── Layout structural ──
         | "main" | "aside"
-        | "section" | "section-sm" | "section-lg" | "page-section"
+        | "section" | "page-section"
         | "hero" | "hero-sm" | "hero-lg"
         | "cover" | "fixed-cover" | "fixed-center" | "abs-center"
         | "sticky-top" | "scroll-y" | "scroll-x"
         | "aspect-square" | "aspect-video" | "aspect-photo"
-
-        // ── Container ──
         | "container" | "container-sm" | "container-md" | "container-lg"
         | "container-xl" | "container-2xl" | "container-fluid" | "container-pad"
-
-        // ── Typography ──
         | "page-title" | "page-subtitle"
         | "hero-title" | "hero-subtitle"
         | "section-title" | "section-subtitle"
         | "card-title" | "card-text"
         | "stat-value" | "stat-label" | "stat-change"
         | "muted" | "subtle" | "hint"
-
-        // ── Surface ──
         | "card" | "card-flat" | "card-raised" | "card-interactive" | "card-glass"
         | "surface" | "surface-muted" | "surface-glass"
-
-        // ── Avatar ──
         | "avatar" | "avatar-sm" | "avatar-lg" | "avatar-xl"
         | "avatar-square" | "avatar-ring" | "avatar-group"
-
-        // ── Divider ──
         | "divider" | "divider-vertical" | "divider-dashed" | "divider-dotted"
-
-        // ── Form ──
         | "btn" | "btn-primary" | "btn-secondary" | "btn-ghost" | "btn-outline"
         | "btn-danger" | "btn-success" | "btn-warning" | "btn-info"
         | "btn-sm" | "btn-lg" | "btn-icon" | "btn-icon-sm" | "btn-block"
         | "input" | "input-error" | "input-sm" | "input-lg"
         | "textarea" | "select" | "label" | "field" | "help-text"
-
-        // ── Toggles ──
         | "switch" | "checkbox" | "radio"
-
-        // ── Feedback ──
         | "badge" | "badge-primary" | "badge-success" | "badge-danger"
         | "badge-warning" | "badge-info" | "badge-muted" | "badge-dot"
         | "chip"
         | "alert" | "alert-info" | "alert-success" | "alert-danger" | "alert-warning"
         | "toast" | "toast-success" | "toast-danger" | "toast-info" | "toast-warning"
-
-        // ── Progress ──
         | "progress" | "progress-bar" | "progress-success" | "progress-danger"
         | "progress-lg" | "progress-sm"
         | "spinner" | "spinner-sm" | "spinner-lg"
         | "skeleton" | "skeleton-text" | "skeleton-circle"
-
-        // ── Overlay ──
         | "overlay" | "modal" | "modal-sm" | "modal-lg" | "modal-full"
         | "tooltip" | "dropdown" | "dropdown-menu" | "dropdown-item"
-
-        // ── Navigation ──
         | "navbar" | "navbar-sticky" | "navbar-brand" | "navbar-link"
         | "site-header" | "site-footer"
         | "sidebar" | "sidebar-item" | "sidebar-item-active"
@@ -551,24 +793,16 @@ fn is_primitive(cls: &str) -> bool {
         | "pagination" | "page-item" | "page-item-active"
         | "tabs" | "tab" | "tab-active"
         | "stepper" | "step" | "step-active" | "step-complete" | "step-divider"
-
-        // ── Content ──
         | "accordion" | "accordion-item" | "accordion-header" | "accordion-body"
         | "table" | "table-striped" | "table-hover" | "table-bordered"
         | "table-cell" | "table-head"
         | "timeline" | "timeline-item"
         | "stat" | "empty-state" | "rating" | "prose"
-
-        // ── Inline ──
         | "code-inline" | "code-block"
         | "link" | "link-muted" | "link-nav"
         | "kbd"
-
-        // ── Interactive ──
         | "interactive-primary" | "interactive-ghost" | "interactive-danger"
         | "focus-ring"
-
-        // ── Decoration ──
         | "glass" | "glow" | "gradient-primary" | "gradient-surface"
         | "shimmer" | "divider-gap"
     )

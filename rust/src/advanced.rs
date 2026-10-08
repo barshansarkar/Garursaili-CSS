@@ -1,7 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════
+// GarurSaili-CSS — advanced.rs
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
+// ═══════════════════════════════════════════════════════════════════
+//
 // Advanced utilities — 3D transforms, safe area, scheme, anchor, etc.
 // ═══════════════════════════════════════════════════════════════════
-
 use rustc_hash::FxHashMap;
 
 pub fn generate(m: &mut FxHashMap<String, String>) {
@@ -326,7 +331,7 @@ fn gen_content_utilities(m: &mut FxHashMap<String, String>) {
 // ─── Misc v4 ───
 
 fn gen_misc_v4(m: &mut FxHashMap<String, String>) {
-    // outline-hidden is distinct from outline-none (v4)
+   // outline-hidden is distinct from outline-none in Garur v4
     m.insert("outline-hidden".into(), "outline:2px solid transparent;outline-offset:2px".into());
 
     // transition-behavior

@@ -1,7 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════
+// GarurSaili-CSS — css_input.rs
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
+// ═══════════════════════════════════════════════════════════════════
+//
 // CSS input processor — @theme extraction + @apply expansion
 // ═══════════════════════════════════════════════════════════════════
-
 use crate::engine;
 use crate::variants::{apply_variants, parse_variant};
 use once_cell::sync::Lazy;

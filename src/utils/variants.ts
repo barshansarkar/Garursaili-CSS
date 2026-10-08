@@ -31,9 +31,11 @@
  */
 // it's 11:47 pm and this file is the reason i now drink coffee with chai also  with redbull
 // why does "group-hover:focus:[&>div]:nth-child(2)" even exist. who hurt you.
+import { loadConfig } from "../config.js";
 
-import configDefault from "../config/garur.config";
-import plugin, { getVariantHook } from "../plugin";
+const configDefault = loadConfig();
+// import configDefault from "../config/garur.config";
+import plugin, { getVariantHook } from "../plugin.js";
 
 // this function took me 4 hours and 2 mental breakdowns
 // it has to split on ':' but NOT inside quotes, parens, brackets, or backticks

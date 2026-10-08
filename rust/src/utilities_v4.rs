@@ -1,7 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════
-// utilities_v4.rs — Tailwind v4 specific utilities + gaps closed
+// GarurSaili-CSS — utilities_v4.rs
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
 // ═══════════════════════════════════════════════════════════════════
-
+//
+// Garur v4 utilities + coverage gaps
+// ═══════════════════════════════════════════════════════════════════
 use rustc_hash::FxHashMap;
 
 pub fn generate_v4(m: &mut FxHashMap<String, String>, palette: &FxHashMap<String, String>) {
@@ -16,7 +21,7 @@ pub fn generate_v4(m: &mut FxHashMap<String, String>, palette: &FxHashMap<String
 }
 
 // ───────────────────────────────────────────────
-// v4 gradient names (bg-linear-*, bg-radial-*, bg-conic-*)
+//// // text-shadow-{color} (Garur v4)
 // ───────────────────────────────────────────────
 
 fn gen_v4_gradients(m: &mut FxHashMap<String, String>) {

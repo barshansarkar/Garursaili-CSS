@@ -1,6 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════
-// utilities_extended.rs — Extended utility coverage
-// Adds ~4000 utilities to reach 5000+ total
+// GarurSaili-CSS — utilities_extended.rs
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
+// ═══════════════════════════════════════════════════════════════════
+//
+// Extended utility coverage — 5000+ utilities total
 // ═══════════════════════════════════════════════════════════════════
 
 use rustc_hash::FxHashMap;

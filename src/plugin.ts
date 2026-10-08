@@ -4,7 +4,7 @@
 //
 // Plugins should call register* functions during startup. The JIT/handler will invoke the hooks.<<<<<<<
 
-import { ParsedToken } from "./native";
+import { ParsedToken } from "./native.js";
 export type HandlerResult = string | { decl: string; selectorSuffix?: string; extra?: string };
 
 type HandlerHook = (token: ParsedToken) => HandlerResult | null;

@@ -1,7 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════
+// GarurSaili-CSS — palette_default.rs
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
+// ═══════════════════════════════════════════════════════════════════
+//
 // Garur Native Palette — 31 families × 11 shades + black/white
-// Author: Barshan Sarkar
-// Designed for GarurSaili-CSS — original OKLCH-balanced ramp
+// Original OKLCH-balanced ramp
 // ═══════════════════════════════════════════════════════════════════
 
 pub const DEFAULT_PALETTE: &[(&str, &str)] = &[

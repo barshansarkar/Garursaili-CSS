@@ -1,4 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════
+// GarurSaili-CSS — primitives.rs
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
+// ═══════════════════════════════════════════════════════════════════
+//
 // primitives.rs — Complete semantic primitive system
 // ═══════════════════════════════════════════════════════════════════
 //
@@ -7,7 +13,6 @@
 //   • Include `color: var(--garur-fg)` for dark mode safety
 //   • COMPOSE with utilities (utilities win in cascade)
 //   • Never override existing utilities (or_insert_with)
-
 use rustc_hash::FxHashMap;
 
 pub fn generate(m: &mut FxHashMap<String, String>) {
@@ -28,6 +33,9 @@ pub fn generate(m: &mut FxHashMap<String, String>) {
     gen_inline(m);
     gen_interactive(m);
     gen_decoration(m);
+
+    // 🆕 TIER B — Extended primitives
+    gen_tier_b_primitives(m);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1026,4 +1034,177 @@ fn gen_decoration(m: &mut FxHashMap<String, String>) {
     m.entry("divider-gap".into()).or_insert_with(|| 
         "display:block;height:1px;width:100%;border:none;\
          background-color:var(--garur-border-subtle);margin-block:1.5rem".into());
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TIER B — Extended Primitives
+// ═══════════════════════════════════════════════════════════════════
+
+fn gen_tier_b_primitives(m: &mut FxHashMap<String, String>) {
+    gen_card_parts(m);
+    gen_modal_parts(m);
+    gen_form_parts(m);
+    gen_commerce(m);
+    gen_empty_state(m);
+}
+
+// ───────────────────────────────────────────────
+// CARD PARTS
+// ───────────────────────────────────────────────
+
+fn gen_card_parts(m: &mut FxHashMap<String, String>) {
+    m.entry("card-header".into()).or_insert_with(|| 
+        "display:flex;align-items:center;justify-content:space-between;\
+         gap:0.75rem;padding:1.25rem 1.5rem;\
+         border-bottom:1px solid var(--garur-border-subtle)".into());
+
+    m.entry("card-body".into()).or_insert_with(|| 
+        "padding:1.5rem".into());
+
+    m.entry("card-footer".into()).or_insert_with(|| 
+        "display:flex;align-items:center;gap:0.5rem;\
+         padding:1rem 1.5rem;\
+         border-top:1px solid var(--garur-border-subtle)".into());
+
+    m.entry("card-media".into()).or_insert_with(|| 
+        "width:100%;aspect-ratio:16/9;overflow:hidden;\
+         border-radius:var(--garur-radius) var(--garur-radius) 0 0".into());
+
+    m.entry("card-overlay".into()).or_insert_with(|| 
+        "position:absolute;inset:auto 0 0 0;padding:1.5rem;\
+         background:linear-gradient(to top, rgb(0 0 0 / 0.7), transparent);\
+         color:#ffffff".into());
+
+    m.entry("card-actions".into()).or_insert_with(|| 
+        "display:flex;align-items:center;gap:0.5rem;\
+         padding-top:1rem".into());
+}
+
+// ───────────────────────────────────────────────
+// MODAL PARTS
+// ───────────────────────────────────────────────
+
+fn gen_modal_parts(m: &mut FxHashMap<String, String>) {
+    m.entry("modal-header".into()).or_insert_with(|| 
+        "display:flex;align-items:center;justify-content:space-between;\
+         gap:0.75rem;padding-bottom:1rem;\
+         border-bottom:1px solid var(--garur-border-subtle)".into());
+
+    m.entry("modal-body".into()).or_insert_with(|| 
+        "padding-block:1.5rem".into());
+
+    m.entry("modal-footer".into()).or_insert_with(|| 
+        "display:flex;justify-content:flex-end;gap:0.5rem;\
+         padding-top:1rem;\
+         border-top:1px solid var(--garur-border-subtle)".into());
+
+    m.entry("modal-close".into()).or_insert_with(|| 
+        "position:absolute;top:1rem;right:1rem;\
+         width:2rem;height:2rem;display:grid;place-items:center;\
+         border-radius:9999px;cursor:pointer;\
+         color:var(--garur-muted);\
+         transition:background-color 150ms ease, color 150ms ease;\
+         &:hover { background-color:var(--garur-surface-muted);\
+                   color:var(--garur-fg); }".into());
+}
+
+// ───────────────────────────────────────────────
+// FORM PARTS
+// ───────────────────────────────────────────────
+
+fn gen_form_parts(m: &mut FxHashMap<String, String>) {
+    m.entry("form-group".into()).or_insert_with(|| 
+        "display:flex;flex-direction:column;gap:0.375rem;\
+         margin-bottom:1rem".into());
+
+    m.entry("form-row".into()).or_insert_with(|| 
+        "display:grid;\
+         grid-template-columns:repeat(auto-fit, minmax(12rem, 1fr));\
+         gap:1rem".into());
+
+    m.entry("input-group".into()).or_insert_with(|| 
+        "display:flex;align-items:stretch;\
+         & > *:not(:first-child) {\
+           border-top-left-radius:0;border-bottom-left-radius:0;\
+           margin-left:-1px;\
+         }\
+         & > *:not(:last-child) {\
+           border-top-right-radius:0;border-bottom-right-radius:0;\
+         }".into());
+
+    m.entry("input-icon".into()).or_insert_with(|| 
+        "position:relative;\
+         & > svg, & > .icon {\
+           position:absolute;left:0.75rem;top:50%;\
+           transform:translateY(-50%);\
+           pointer-events:none;color:var(--garur-muted);\
+         }\
+         & > input { padding-left:2.25rem; }".into());
+
+    m.entry("field-label".into()).or_insert_with(|| 
+        "display:block;font-size:0.875rem;font-weight:500;\
+         margin-bottom:0.375rem;color:var(--garur-fg)".into());
+
+    m.entry("field-hint".into()).or_insert_with(|| 
+        "font-size:0.75rem;color:var(--garur-muted);\
+         margin-top:0.25rem".into());
+
+    m.entry("field-error".into()).or_insert_with(|| 
+        "font-size:0.75rem;color:var(--garur-danger);\
+         margin-top:0.25rem".into());
+
+    m.entry("field-success".into()).or_insert_with(|| 
+        "font-size:0.75rem;color:var(--garur-success);\
+         margin-top:0.25rem".into());
+}
+
+// ───────────────────────────────────────────────
+// COMMERCE
+// ───────────────────────────────────────────────
+
+fn gen_commerce(m: &mut FxHashMap<String, String>) {
+    m.entry("product-card".into()).or_insert_with(|| 
+        "display:flex;flex-direction:column;\
+         background:var(--garur-surface);color:var(--garur-fg);\
+         border:1px solid var(--garur-border-subtle);\
+         border-radius:var(--garur-radius-lg);\
+         overflow:hidden;cursor:pointer;\
+         transition:transform 200ms ease, box-shadow 200ms ease;\
+         &:hover { transform:translateY(-2px);\
+                   box-shadow:var(--garur-shadow-lg); }".into());
+
+    m.entry("cart-item".into()).or_insert_with(|| 
+        "display:flex;align-items:center;gap:1rem;\
+         padding:0.75rem 0;\
+         border-bottom:1px solid var(--garur-border-subtle)".into());
+
+    m.entry("cart-item-image".into()).or_insert_with(|| 
+        "width:3.5rem;height:3.5rem;flex-shrink:0;\
+         border-radius:var(--garur-radius);overflow:hidden;\
+         background:var(--garur-surface-muted)".into());
+
+    m.entry("cart-item-info".into()).or_insert_with(|| 
+        "display:flex;flex-direction:column;gap:0.125rem;flex:1;\
+         min-width:0".into());
+}
+
+// ───────────────────────────────────────────────
+// EMPTY STATE + AVATAR GROUP EXTRAS
+// ───────────────────────────────────────────────
+
+fn gen_empty_state(m: &mut FxHashMap<String, String>) {
+    m.entry("empty-state-icon".into()).or_insert_with(|| 
+        "display:flex;flex-direction:column;align-items:center;\
+         justify-content:center;gap:1rem;padding:3rem 1.5rem;\
+         text-align:center;color:var(--garur-muted);\
+         & > svg, & > .icon { width:3rem;height:3rem;opacity:0.5; }".into());
+
+    m.entry("avatar-group-count".into()).or_insert_with(|| 
+        "display:inline-flex;align-items:center;justify-content:center;\
+         width:2.5rem;height:2.5rem;flex-shrink:0;\
+         border-radius:9999px;\
+         background:var(--garur-surface-muted);\
+         color:var(--garur-fg);\
+         font-size:0.75rem;font-weight:600;\
+         border:2px solid var(--garur-surface)".into());
 }

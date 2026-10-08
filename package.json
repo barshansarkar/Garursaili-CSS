@@ -1,20 +1,21 @@
 {
   "name": "garursaili-css",
-  "version": "1.1.0",
-  "description": "The most beautiful atomic CSS framework. Rust-powered, ultra-fast JIT.",
+  "version": "1.4.0",
+  "description": "The Semantic Indian CSS Framework. Rust-powered, ultra-fast, independent.",
   "license": "MIT",
-  "author": "Barshan Sarkar",
   "type": "module",
-  "main": "dist/index.cjs",
-  "module": "dist/index.mjs",
+  "author": {
+    "name": "Barshan Sarkar",
+    "location": "Malda, West Bengal, India"
+  },
+  "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "garur": "dist/cli.cjs"
+    "garur": "dist/cli.js"
   },
   "files": [
     "dist/**/*",
-    "index.cjs",
-    "index.d.ts",
+    "garur_core.*.node",
     "README.md",
     "LICENSE"
   ],
@@ -23,24 +24,15 @@
   },
   "scripts": {
     "rust": "cd rust && napi build --platform --release && cp -v garur_core.*.node ../ || true",
-    "rust:all": "cd rust && napi build --platform --release --target x86_64-unknown-linux-gnu",
-    "build": "npm run build:ts",
-    "build:ts": "tsc --project tsconfig.json --outDir dist-tmp && node scripts/bundle.mjs",
-    "prepublishOnly": "npm run build",
+    "build": "tsc --project tsconfig.json --outDir dist",
+    "build:clean": "rm -rf dist && npm run build",
     "cli": "tsx src/cli.ts",
     "test": "npm run cli -- --help",
-    "version": "napi version"
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "minimist": "^1.2.8",
     "picocolors": "^1.1.1"
-  },
-  "optionalDependencies": {
-    "@garursaili/linux-x64-gnu": "1.1.0",
-    "@garursaili/linux-x64-musl": "1.1.0",
-    "@garursaili/darwin-x64": "1.1.0",
-    "@garursaili/darwin-arm64": "1.1.0",
-    "@garursaili/win32-x64-msvc": "1.1.0"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.4",
@@ -51,21 +43,28 @@
   },
   "keywords": [
     "css",
-    "atomic",
-    "tailwind",
+    "semantic-css",
+    "semantic",
     "rust",
     "napi",
     "jit",
     "utility-first",
     "garur",
     "saili",
+    "garursaili",
+    "indian-css",
     "fast",
-    "css-in-js"
+    "css-framework",
+    "atomic-css",
+    "made-in-india"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/barshansarkar/Garursaili-CSS.git"
+    "url": "git+https://github.com/barshansarkar/Garursaili-CSS.git"
   },
   "bugs": "https://github.com/barshansarkar/Garursaili-CSS/issues",
-  "homepage": "https://github.com/barshansarkar/Garursaili-CSS#readme"
+  "homepage": "https://github.com/barshansarkar/Garursaili-CSS#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }

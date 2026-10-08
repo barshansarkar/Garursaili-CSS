@@ -1,19 +1,22 @@
 // ═══════════════════════════════════════════════════════════════════
-// Garur Preflight v3 — Original design
-// Author: Barshan Sarkar
+// GarurSaili-CSS — preflight.rs
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
 // ═══════════════════════════════════════════════════════════════════
+//
+// Garur Preflight v3 — Original design
 //
 // Philosophy: capability-detected, accessible-by-default, cascade-first.
 //
-// Unique to Garur (not found in Tailwind/Bootstrap/UnoCSS):
+// Unique to Garur (exclusive features):
 //   • Runtime theme tokens (--garur-*)
-//   • prefers-reduced-data    — data-saver mode
-//   • prefers-reduced-transparency — low-vision friendly
+//   • prefers-reduced-data          — data-saver mode
+//   • prefers-reduced-transparency  — low-vision friendly
 //   • GPU-accelerated animation defaults
 //   • Auto dark-mode form controls (opt-in)
 //   • Layered output with @layer cascade
 // ═══════════════════════════════════════════════════════════════════
-
 use once_cell::sync::OnceCell;
 use std::sync::{Arc, Mutex};
 

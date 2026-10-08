@@ -1,7 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════
-// Utilities — comprehensive Tailwind-equivalent utility generator
+// GarurSaili-CSS — utilities.rs
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
 // ═══════════════════════════════════════════════════════════════════
-
+//
+// Utilities — comprehensive Garur utility generator
+// ═══════════════════════════════════════════════════════════════════
 use rustc_hash::FxHashMap;
 
 pub const SPACING: &[(&str, &str)] = &[
@@ -141,6 +146,7 @@ pub fn generate(palette: &FxHashMap<String, String>) -> FxHashMap<String, String
     crate::utilities_extended::generate_extended(&mut m);
     crate::utilities_v4::generate_v4(&mut m, palette);
      crate::primitives::generate(&mut m); 
+     crate::signature::generate(&mut m);
     m
 }
 

@@ -1,38 +1,57 @@
+# ═══════════════════════════════════════════════════════════════════
+# GarurSaili-CSS — Native Core
+# The Semantic Indian CSS Framework
+# Author: Barshan Sarkar · Malda, West Bengal, India
+# ═══════════════════════════════════════════════════════════════════
+
 [package]
 name = "garur-saili-css"
-version = "0.2.0"
+version = "1.4.0"
 edition = "2021"
+authors = ["Barshan Sarkar <barshan@garursaili.dev>"]
+description = "Native core for GarurSaili-CSS — the semantic Indian CSS framework"
+license = "MIT"
+repository = "https://github.com/barshansarkar/Garursaili-CSS"
+homepage = "https://garursaili.dev"
+keywords = ["css", "semantic", "rust", "napi", "jit", "garur", "india"]
+categories = ["web-programming", "development-tools"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-napi = { version = "2", default-features = false, features = ["napi6", "serde-json"] }
-napi-derive = "2"
-rustc-hash = "1.1"
-once_cell = "1"
-regex = "1.10"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-bincode = "1"
-memmap2 = "0.9"
-rayon = "1.10"
-walkdir = "2"
-globset = "0.4"
-xxhash-rust = { version = "0.8", features = ["xxh3"] }
-lightningcss = { version = "1.0.0-alpha.72", default-features = false, features = ["browserslist", "bundler"] }
-base64 = "0.22"
+napi         = { version = "2", default-features = false, features = ["napi6", "serde-json"] }
+napi-derive  = "2"
+rustc-hash   = "1.1"
+once_cell    = "1"
+regex        = "1.10"
+serde        = { version = "1", features = ["derive"] }
+serde_json   = "1"
+bincode      = "1"
+memmap2      = "0.9"
+rayon        = "1.10"
+walkdir      = "2"
+globset      = "0.4"
+xxhash-rust  = { version = "0.8", features = ["xxh3"] }
+base64       = "0.22"
 
 # ── SPEED LAYER ──
-dashmap = "6"
-arc-swap = "1"
+dashmap      = "6"
+arc-swap     = "1"
+
+# ── CSS MINIFIER + TARGET RESOLVER ──
+# lightningcss is an independent Rust CSS toolkit (Apache-2.0, by the Parcel team).
+# It does NOT carry third-party brand code — it parses and minifies plain CSS.
+# The `browserslist` feature pulls in the Rust port of the Browserslist *spec*
+# (a W3C-adjacent standard), which is what every CSS tool uses. Not a brand dep.
+lightningcss = { version = "1.0.0-alpha.72", default-features = false, features = ["browserslist", "bundler"] }
 
 [build-dependencies]
 napi-build = "2"
 
 [profile.release]
-lto = "fat"
-codegen-units = 1
-panic = "abort"
-opt-level = 3
-strip = true
+lto            = "fat"
+codegen-units  = 1
+panic          = "abort"
+opt-level      = 3
+strip          = true

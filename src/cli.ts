@@ -12,7 +12,7 @@ import http from "node:http";
 import os from "node:os";
 import { execSync } from "node:child_process";
 import pc from "picocolors";
-import { loadConfig, applyConfig } from "./config";
+import { loadConfig, applyConfig } from "./config.js";
 import {
   hasNative,
   nativeVersion,
@@ -22,21 +22,22 @@ import {
   minifyCss,
   exportCache,
   importCache,
-} from "./native";
+} from "./native.js";
 
 const VERSION = (() => {
   try {
     const pkgPath = path.resolve(process.cwd(), "package.json");
     if (fs.existsSync(pkgPath)) {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-      return pkg.version || "1.1.0";
+      return pkg.version || "1.4.0";
     }
   } catch { /* ignore */ }
-  return "1.1.0";
+  return "1.4.0";
 })();
-const banner = pc.cyan(`  🦅 GarurSaili-CSS v${VERSION}`);
-const tagline = pc.gray("  Ultra-fast atomic CSS engine\n");
 
+const banner  = pc.cyan(`  🦅 GarurSaili-CSS v${VERSION}`);
+const tagline = pc.gray("  The Semantic Indian CSS Framework\n") +
+                pc.gray("  By Barshan Sarkar · Malda, West Bengal, India\n");
 const funMessages = [
   "CSS so fast, it finishes before you type.",
   "Atomic CSS delivered hot.",
@@ -321,7 +322,7 @@ function cmdExample(): boolean {
 <head>
   <meta charset="UTF-8">
   <title>GarurSaili Demo</title>
-  <link rel="stylesheet" href="dist/garur.css">
+  <link rel="stylesheet" href="build/garur.css">
 </head>
 <body class="bg-ash-50 p-8">
   <div class="max-w-4xl mx-auto">
@@ -347,8 +348,8 @@ function cmdClean(): void {
     path.resolve(process.cwd(), ".garur-cache.json"),
     path.resolve(process.cwd(), ".garur-cache.bin"),          // ← ADD
     path.resolve(process.cwd(), ".garur-cache-stats.json"),   // ← ADD
-    path.resolve(process.cwd(), "dist/garur.css"),
-    path.resolve(process.cwd(), "dist/garur.min.css"),
+    path.resolve(process.cwd(), "build/garur.css"),
+    path.resolve(process.cwd(), "build/garur.min.css"),
   ];
   let removed = 0;
   for (const c of caches) {
@@ -414,7 +415,7 @@ function cmdDoctor(): void {
     msg: `${files.length} file(s) matched`,
   });
 
-  const cssPath = path.resolve(process.cwd(), "dist/garur.css");
+  const cssPath = path.resolve(process.cwd(), "build/garur.css");
   checks.push({
     name: "CSS output",
     ok: fs.existsSync(cssPath),
@@ -437,8 +438,8 @@ function cmdDoctor(): void {
 // ─── stats ───
 
 function cmdStats(): void {
-  const cssPath = path.resolve(process.cwd(), "dist/garur.css");
-  const minPath = path.resolve(process.cwd(), "dist/garur.min.css");
+  const cssPath = path.resolve(process.cwd(), "build/garur.css");
+  const minPath = path.resolve(process.cwd(), "build/garur.min.css");
 
   if (!fs.existsSync(cssPath)) {
     console.log(pc.yellow("  No CSS output. Run `garur build` first."));
@@ -685,7 +686,7 @@ function cmdCacheStatsReset(): void {
 
 async function cmdPreview(port: number = 3000): Promise<void> {
   const cwd = process.cwd();
-  const distDir = path.resolve(cwd, "dist");
+  const distDir = path.resolve(cwd, "build");
   const cssPath = path.join(distDir, "garur.css");
 
   if (!fs.existsSync(cssPath)) {
@@ -1122,9 +1123,9 @@ async function main(): Promise<void> {
     : DEFAULT_INCLUDES;
 
   const outputFile = path.resolve(
-    cwd,
-    (args.output as string) || (args.o as string) || "dist/garur.css"
-  );
+  cwd,
+  (args.output as string) || (args.o as string) || "build/garur.css"
+);
 
   // ─── Watch mode ───
   if (args.watch || args.w || cmd === "watch") {

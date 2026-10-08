@@ -2,7 +2,12 @@
 // Engine — parse + escape + build + extract + finalize
 // SPEED: DashMap caches, ArcSwap config/palette/utils, Arc<str> rules
 // ═══════════════════════════════════════════════════════════════════
-
+// ═══════════════════════════════════════════════════════════════════
+// GarurSaili-CSS 
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
+// ═══════════════════════════════════════════════════════════════════
 use crate::palette_default;
 use crate::plugin;
 use crate::sanitize::{is_safe_arbitrary, is_safe_property};
@@ -1005,6 +1010,35 @@ fn keyframes_for_class(cls: &str) -> Option<&'static str> {
             Some("@keyframes garur-spin { to { transform: rotate(360deg); } }"),
         "skeleton" | "skeleton-text" | "skeleton-circle" =>
             Some("@keyframes garur-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }"),
+                        // ── Garur premium keyframes ──
+"float-slow" | "float-slower" | "orb" | "orb-iris" | "orb-pink" | "orb-warm" => 
+    Some("@keyframes garur-float-slow { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(20px, -30px) scale(1.05); } } @keyframes garur-float-slower { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-25px, 20px) scale(1.08); } }"),
+
+"gradient-text" => 
+    Some("@keyframes garur-gradient-shift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }"),
+
+"pulse-ring" => 
+    Some("@keyframes garur-pulse-ring { 0% { transform: scale(0.8); opacity: 0.6; } 100% { transform: scale(2.2); opacity: 0; } }"),
+
+"marquee" => 
+    Some("@keyframes garur-marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }"),
+    "loading-dots" | "status-alive" =>
+    Some("@keyframes garur-pulse { 50% { opacity: 0.5; } }"),
+       // Garur terminal keyframes
+"cursor-blink" | "terminal-cursor" =>
+    Some("@keyframes garur-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }"),
+
+"border-beam" =>
+    Some("@keyframes garur-beam { to { --beam-angle: 360deg; } }"),
+
+"aurora-bg" =>
+    Some("@keyframes garur-aurora { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(20px, -20px) scale(1.05); } 66% { transform: translate(-15px, 15px) scale(0.98); } }"),
+
+"scan-line" =>
+    Some("@keyframes garur-scan { 0%, 100% { transform: translateY(-100%); opacity: 0; } 50% { transform: translateY(100vh); opacity: 1; } }"),
+
+"shine-always" =>
+    Some("@keyframes garur-shine { 0% { left: -100%; } 50%, 100% { left: 100%; } }"),
         _ => None,
     }
 }

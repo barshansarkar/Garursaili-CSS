@@ -1,7 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════
 // Plugin registry — Rust-side hook storage
 // ═══════════════════════════════════════════════════════════════════
-
+// ═══════════════════════════════════════════════════════════════════
+// GarurSaili-CSS 
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
+// ═══════════════════════════════════════════════════════════════════
 use once_cell::sync::Lazy;
 use rustc_hash::FxHashMap;
 use std::sync::RwLock;

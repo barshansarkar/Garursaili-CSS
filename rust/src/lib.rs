@@ -1,7 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════
 // GarurSaili-CSS — Native Core
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
 // ═══════════════════════════════════════════════════════════════════
-
 use memmap2::Mmap;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
@@ -16,6 +18,7 @@ mod plugin;
 mod preflight;
 mod primitives; 
 mod sanitize;
+mod signature;          
 mod ssc;
 mod utilities;
 mod utilities_extended;

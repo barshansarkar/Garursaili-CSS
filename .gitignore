@@ -1,20 +1,34 @@
+# ═══════════════════════════════════════════════════════════════
+# GarurSaili-CSS — .gitignore
+# The Semantic Indian CSS Framework
+# Author: Barshan Sarkar · Malda, West Bengal, India
+# ═══════════════════════════════════════════════════════════════
+
 # ── Node ──
 node_modules/
 npm-debug.log*
 yarn-error.log*
+.npm/
+.pnpm-store/
 
-# ── Build output ──
-dist/
+# ── Build scratch (NOT dist — we commit dist) ──
 build/
 out/
+dist-tmp/
 *.tgz
+
+# ── Logs ──
 *.log
 
-# ── Native binaries (rebuilt per platform) ──
+# ── Native binaries — ship these on Linux x64 ──
 *.node
-garur_core.*.node
+!garur_core.linux-x64-gnu.node
+!garur_core.linux-x64-musl.node
+!garur_core.darwin-arm64.node
+!garur_core.darwin-x64.node
+!garur_core.win32-x64-msvc.node
 
-# ── Garur cache ──
+# ── Garur cache (never commit) ──
 .garur-cache.bin
 .garur-cache.json
 .garur-cache-stats.json
@@ -22,24 +36,37 @@ garur_core.*.node
 # ── Rust ──
 rust/target/
 **/*.rs.bk
+**/*.pdb
 
 # ── Editor ──
 .vscode/
 .idea/
 *.swp
+*.swo
+*~
 .DS_Store
 
-# ── Scratch ──
+# ── Scratch / local test files ──
 a.html
 scratch.*
 tmp.*
-
-# ── Env ──
-.env
-.env.local
 gen-bench.mjs
 test-full.html
 test-*.html
 test-*.mjs
 bench-large.html
 ect/
+
+# ── Env ──
+.env
+.env.local
+.env.*.localect/
+build/
+
+# ── Duplicate binary from rust/ build ──
+rust/*.node
+
+# ── Stale CSS if it appears in dist/ ──
+dist/garur.css
+dist/garur.min.css
+dist-tmp/

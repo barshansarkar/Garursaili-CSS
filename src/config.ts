@@ -5,7 +5,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { createRequire } from "node:module";
-import { initConfig } from "./native";
+import { initConfig } from "./native.js";
 
 const requireCjs = createRequire(import.meta.url);
 
@@ -162,4 +162,5 @@ export function applyConfig(cfg: GarurConfig): void {
   );
 }
 
+export { DEFAULT_CONFIG };
 export default DEFAULT_CONFIG;

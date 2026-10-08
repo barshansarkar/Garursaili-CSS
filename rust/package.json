@@ -1,6 +1,12 @@
 {
-  "name": "garur-core",
-  "version": "0.1.0",
+  "name": "@garursaili/core",
+  "version": "1.4.0",
+  "description": "Native Rust core for GarurSaili-CSS — the semantic Indian CSS framework",
+  "license": "MIT",
+  "author": {
+    "name": "Barshan Sarkar",
+    "location": "Malda, West Bengal, India"
+  },
   "main": "index.js",
   "types": "index.d.ts",
   "napi": {

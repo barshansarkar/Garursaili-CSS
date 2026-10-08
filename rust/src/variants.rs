@@ -1,7 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════
-// Variants Engine — Tailwind v4-compatible modifier system
+// GarurSaili-CSS — variants.rs
+// The Semantic Indian CSS Framework
+// Author: Barshan Sarkar · Malda, West Bengal, India
+// Version: 1.4.0
 // ═══════════════════════════════════════════════════════════════════
-
+//
+// Variants Engine — Garur v4 modifier system
+// ═══════════════════════════════════════════════════════════════════
 #[derive(Debug, Clone)]
 pub enum Variant {
     State(&'static str),
