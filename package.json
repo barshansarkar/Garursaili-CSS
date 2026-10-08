@@ -1,6 +1,6 @@
 {
   "name": "garursaili-css",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "The Semantic Indian CSS Framework. Rust-powered, ultra-fast, independent.",
   "license": "MIT",
   "type": "module",
@@ -22,8 +22,12 @@
   "engines": {
     "node": ">=18"
   },
-  "os": ["linux"],
-"cpu": ["x64"],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
   "scripts": {
     "rust": "cd rust && napi build --platform --release && cp -v garur_core.*.node ../ || true",
     "build": "tsc --project tsconfig.json --outDir dist",
