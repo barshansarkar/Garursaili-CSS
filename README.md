@@ -79,7 +79,7 @@
 
 <h2 id="what-is-garur">✨ What is Garur?</h2>
 
-<p><strong>Garur</strong> (গরুর / گرو) means <strong>"teacher"</strong> in Bengali and Sanskrit.</p>
+<p><strong>Garur</strong> means <strong>"speed"</strong> in Sanskrit.</p>
 
 <p>
 Every CSS framework teaches you <em>what to build</em>.<br>
