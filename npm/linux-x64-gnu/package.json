@@ -1,0 +1,16 @@
+{
+  "name": "@garursaili/linux-x64-gnu",
+  "version": "1.5.0",
+  "description": "GarurSaili-CSS native binary for Linux x64 (glibc)",
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "libc": ["glibc"],
+  "main": "garur_core.linux-x64-gnu.node",
+  "files": ["garur_core.linux-x64-gnu.node"],
+  "publishConfig": { "access": "public" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/barshansarkar/Garursaili-CSS.git"
+  },
+  "license": "MIT"
+}

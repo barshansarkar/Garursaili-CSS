@@ -1,12 +1,19 @@
 {
   "name": "garursaili-css",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "The Semantic Indian CSS Framework. Rust-powered, ultra-fast, independent.",
   "license": "MIT",
   "type": "module",
   "author": {
     "name": "Barshan Sarkar",
-    "location": "Malda, West Bengal, India"
+    "location": "Malda, West Bengal, India",
+    "optionalDependencies": {
+      "@garursaili/linux-x64-gnu": "1.5.0",
+      "@garursaili/linux-x64-musl": "1.5.0",
+      "@garursaili/darwin-x64": "1.5.0",
+      "@garursaili/darwin-arm64": "1.5.0",
+      "@garursaili/win32-x64-msvc": "1.5.0"
+    }
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

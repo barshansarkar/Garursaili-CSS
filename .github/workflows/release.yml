@@ -1,12 +1,17 @@
-name: Release
+# ═══════════════════════════════════════════════════════════════════
+# GarurSaili-CSS — Cross-Platform Build
+# The Semantic Indian CSS Framework
+# Author: Barshan Sarkar · Malda, West Bengal, India
+# ═══════════════════════════════════════════════════════════════════
+
+name: Build
 
 on:
   push:
-    tags:
-      - "v*"
-
-permissions:
-  contents: write
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
 
 jobs:
   build:
@@ -16,26 +21,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
             pkg: linux-x64-gnu
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
             pkg: linux-x64-musl
-          - target: x86_64-apple-darwin
-            os: macos-latest
+          - os: macos-latest
+            target: x86_64-apple-darwin
             pkg: darwin-x64
-          - target: aarch64-apple-darwin
-            os: macos-latest
+          - os: macos-latest
+            target: aarch64-apple-darwin
             pkg: darwin-arm64
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
             pkg: win32-x64-msvc
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -51,78 +56,86 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y musl-tools
 
-      - name: Install deps
+      - name: Install npm deps
         working-directory: rust
         run: npm install
 
-      - name: Build native
+      - name: Build native module
         working-directory: rust
         run: npx napi build --platform --release --target ${{ matrix.target }}
+        env:
+          RUSTFLAGS: "-C target-feature=-crt-static"
+
+      - name: Move binary to platform folder
+        shell: bash
+        run: |
+          mkdir -p npm/${{ matrix.pkg }}
+          # napi writes garur_core.<target>.node in rust/
+          cp rust/garur_core.*.node npm/${{ matrix.pkg }}/ || true
+          ls -la npm/${{ matrix.pkg }}/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bindings-${{ matrix.pkg }}
-          path: rust/*.node
+          name: bindings-${{ matrix.target }}
+          path: npm/${{ matrix.pkg }}/*.node
           if-no-files-found: error
 
   publish:
-    name: Publish npm packages
-    needs: [build]
+    name: Publish to npm
     runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install deps
-        working-directory: rust
-        run: npm install
+          registry-url: https://registry.npmjs.org
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Move .node files
+      - name: Distribute binaries to platform folders
         run: |
-          find artifacts -name "*.node" -exec cp {} rust/ \;
-          ls -la rust/*.node
+          for dir in artifacts/bindings-*; do
+            target=$(basename "$dir" | sed 's/bindings-//')
+            case "$target" in
+              x86_64-unknown-linux-gnu)  pkg=linux-x64-gnu ;;
+              x86_64-unknown-linux-musl) pkg=linux-x64-musl ;;
+              x86_64-apple-darwin)       pkg=darwin-x64 ;;
+              aarch64-apple-darwin)      pkg=darwin-arm64 ;;
+              x86_64-pc-windows-msvc)    pkg=win32-x64-msvc ;;
+            esac
+            mkdir -p npm/$pkg
+            cp -v "$dir"/*.node npm/$pkg/ || true
+          done
+          find npm -type f -name "*.node" -exec ls -lh {} \;
 
-      - name: Publish to npm
-        working-directory: rust
-        run: npx napi prepublish -t npm
+      - name: Publish platform packages
+        run: |
+          for pkg_dir in npm/*/; do
+            pkg_name=$(basename "$pkg_dir")
+            if [ -f "$pkg_dir"/*.node ]; then
+              echo "📦 Publishing @garursaili/$pkg_name..."
+              cd "$pkg_dir"
+              npm publish --access public
+              cd ../..
+            else
+              echo "⚠️  Skipping @garursaili/$pkg_name (no .node file)"
+            fi
+          done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish main package
         run: |
-          npm install --ignore-scripts
-          npm run build || true
+          npm install
+          npm run build
           npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  release:
-    name: Create GitHub Release
-    needs: [build]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Create release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: artifacts/**/*.node
-          generate_release_notes: true

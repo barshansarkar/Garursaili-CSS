@@ -1,0 +1,16 @@
+{
+  "name": "@garursaili/linux-x64-musl",
+  "version": "1.5.0",
+  "description": "GarurSaili-CSS native binary for Linux x64 (musl/Alpine)",
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "libc": ["musl"],
+  "main": "garur_core.linux-x64-musl.node",
+  "files": ["garur_core.linux-x64-musl.node"],
+  "publishConfig": { "access": "public" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/barshansarkar/Garursaili-CSS.git"
+  },
+  "license": "MIT"
+}

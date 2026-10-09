@@ -6,7 +6,7 @@
 
 [package]
 name = "garur-saili-css"
-version = "1.4.0"
+version = "1.5.0"
 edition = "2021"
 authors = ["Barshan Sarkar <barshan@garursaili.dev>"]
 description = "Native core for GarurSaili-CSS — the semantic Indian CSS framework"

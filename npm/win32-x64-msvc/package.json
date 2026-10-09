@@ -1,0 +1,15 @@
+{
+  "name": "@garursaili/win32-x64-msvc",
+  "version": "1.5.0",
+  "description": "GarurSaili-CSS native binary for Windows x64",
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "main": "garur_core.win32-x64-msvc.node",
+  "files": ["garur_core.win32-x64-msvc.node"],
+  "publishConfig": { "access": "public" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/barshansarkar/Garursaili-CSS.git"
+  },
+  "license": "MIT"
+}
