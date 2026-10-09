@@ -21,21 +21,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            pkg: linux-x64-gnu
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-            pkg: linux-x64-musl
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            pkg: darwin-x64
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            pkg: darwin-arm64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            pkg: win32-x64-msvc
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,  pkg: linux-x64-gnu }
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-musl, pkg: linux-x64-musl }
+          - { os: macos-latest,   target: x86_64-apple-darwin,       pkg: darwin-x64 }
+          - { os: macos-latest,   target: aarch64-apple-darwin,      pkg: darwin-arm64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc,    pkg: win32-x64-msvc }
 
     steps:
       - uses: actions/checkout@v4
@@ -62,17 +52,28 @@ jobs:
 
       - name: Build native module
         working-directory: rust
-        run: npx napi build --platform --release --target ${{ matrix.target }}
-        env:
-          RUSTFLAGS: "-C target-feature=-crt-static"
+        shell: bash
+        run: |
+          npx napi build --platform --release --target ${{ matrix.target }}
+          echo ""
+          echo "=== Files in rust/ ==="
+          ls -la
+          echo ""
+          echo "=== Search all .node files (from rust/) ==="
+          find . -name "*.node" -type f
 
       - name: Move binary to platform folder
         shell: bash
         run: |
           mkdir -p npm/${{ matrix.pkg }}
-          # napi writes garur_core.<target>.node in rust/
-          cp rust/garur_core.*.node npm/${{ matrix.pkg }}/ || true
-          ls -la npm/${{ matrix.pkg }}/
+          find . -maxdepth 3 -name "garur_core*.node" -type f -exec cp -v {} npm/${{ matrix.pkg }}/ \;
+          echo ""
+          echo "=== Files staged in npm/${{ matrix.pkg }}/ ==="
+          ls -la npm/${{ matrix.pkg }}/ || true
+          test -n "$(ls -A npm/${{ matrix.pkg }}/*.node 2>/dev/null)" || {
+            echo "❌ No .node file staged — aborting"
+            exit 1
+          }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
