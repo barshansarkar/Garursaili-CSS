@@ -6,14 +6,7 @@
   "type": "module",
   "author": {
     "name": "Barshan Sarkar",
-    "location": "Malda, West Bengal, India",
-    "optionalDependencies": {
-      "@garursaili/linux-x64-gnu": "1.5.0",
-      "@garursaili/linux-x64-musl": "1.5.0",
-      "@garursaili/darwin-x64": "1.5.0",
-      "@garursaili/darwin-arm64": "1.5.0",
-      "@garursaili/win32-x64-msvc": "1.5.0"
-    }
+    "location": "Malda, West Bengal, India"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,12 +22,13 @@
   "engines": {
     "node": ">=18"
   },
-  "os": [
-    "linux"
-  ],
-  "cpu": [
-    "x64"
-  ],
+  "optionalDependencies": {
+    "@garursaili/linux-x64-gnu": "1.5.0",
+    "@garursaili/linux-x64-musl": "1.5.0",
+    "@garursaili/darwin-x64": "1.5.0",
+    "@garursaili/darwin-arm64": "1.5.0",
+    "@garursaili/win32-x64-msvc": "1.5.0"
+  },
   "scripts": {
     "rust": "cd rust && napi build --platform --release && cp -v garur_core.*.node ../ || true",
     "build": "tsc --project tsconfig.json --outDir dist",
