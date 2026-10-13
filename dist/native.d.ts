@@ -1,6 +1,3 @@
-/**
- * Garur Native Bridge
- */
 export type ParsedToken = {
     raw: string;
     key: string;
@@ -31,6 +28,8 @@ export interface SscStats {
 }
 export declare function hasNative(): boolean;
 export declare function nativeVersion(): string;
+export declare function nativeSource(): string;
+export declare function platformKey(): string;
 export declare function initConfig(json: string): void;
 export declare function initHandler(json: string): void;
 export declare function parse(token: string): ParsedToken;
@@ -61,13 +60,15 @@ export declare function resetCacheStats(): void;
  */
 export declare function runSscWithStats(files: string[], configJson: string): SscStats;
 export declare function exportCache(): string;
+export declare function importCache(data: string): boolean;
 export declare function clearFileCache(): void;
 export declare function clearFinalizeCache(): void;
 export declare function finalizeCacheEntries(): number;
-export declare function importCache(data: string): boolean;
 declare const _default: {
     hasNative: typeof hasNative;
     nativeVersion: typeof nativeVersion;
+    nativeSource: typeof nativeSource;
+    platformKey: typeof platformKey;
     initConfig: typeof initConfig;
     initHandler: typeof initHandler;
     parse: typeof parse;
@@ -90,5 +91,10 @@ declare const _default: {
     hashFile: typeof hashFile;
     getCacheStats: typeof getCacheStats;
     resetCacheStats: typeof resetCacheStats;
+    exportCache: typeof exportCache;
+    importCache: typeof importCache;
+    clearFileCache: typeof clearFileCache;
+    clearFinalizeCache: typeof clearFinalizeCache;
+    finalizeCacheEntries: typeof finalizeCacheEntries;
 };
 export default _default;
