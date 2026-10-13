@@ -70,3 +70,4 @@ rust/*.node
 dist/garur.css
 dist/garur.min.css
 dist-tmp/
+*.bak
