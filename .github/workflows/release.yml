@@ -59,7 +59,7 @@ jobs:
           echo "=== Files in rust/ ==="
           ls -la
           echo ""
-          echo "=== Search all .node files (from rust/) ==="
+          echo "=== Search all .node files ==="
           find . -name "*.node" -type f
 
       - name: Move binary to platform folder
@@ -121,19 +121,38 @@ jobs:
         run: |
           for pkg_dir in npm/*/; do
             pkg_name=$(basename "$pkg_dir")
-            if [ -f "$pkg_dir"/*.node ]; then
-              echo "📦 Publishing @garursaili/$pkg_name..."
-              cd "$pkg_dir"
-              npm publish --access public
-              cd ../..
-            else
+            if [ ! -f "$pkg_dir"/*.node ]; then
               echo "⚠️  Skipping @garursaili/$pkg_name (no .node file)"
+              continue
             fi
+
+            PKG_VERSION=$(node -p "require('./$pkg_dir/package.json').version")
+
+            if npm view "@garursaili/$pkg_name@$PKG_VERSION" version 2>/dev/null; then
+              echo "⏭️  @garursaili/$pkg_name@$PKG_VERSION already published — skipping"
+              continue
+            fi
+
+            echo "📦 Publishing @garursaili/$pkg_name@$PKG_VERSION..."
+            (cd "$pkg_dir" && npm publish --access public)
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Check if main package version already published
+        id: check
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view garursaili-css@$PKG_VERSION version 2>/dev/null; then
+            echo "already_published=true" >> $GITHUB_OUTPUT
+            echo "⚠️  v$PKG_VERSION already exists on npm — will skip publish"
+          else
+            echo "already_published=false" >> $GITHUB_OUTPUT
+            echo "✅ v$PKG_VERSION is new — will publish"
+          fi
+
       - name: Publish main package
+        if: steps.check.outputs.already_published == 'false'
         run: |
           npm install
           npm run build
