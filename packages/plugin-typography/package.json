@@ -1,0 +1,1 @@
+{"name":"@garursaili/plugin-typography","version":"1.0.0","description":"Prose typography utilities for GarurSaili-CSS","type":"module","main":"./dist/index.js","types":"./dist/index.d.ts","files":["dist"],"keywords":["garur-plugin"],"peerDependencies":{"garursaili-css":"^1.5.0"},"scripts":{"build":"tsc"}}

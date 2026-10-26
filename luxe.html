@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en" class="dark font-sans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Luxe v5.0 — Complete</title>
+  <link rel="stylesheet" href="build/garur.css">
+</head>
+<body class="bg-void-950 text-white antialiased min-h-screen overflow-x-hidden">
+
+  <!-- SVG LENS FILTER -->
+  <svg width="0" height="0" class="absolute pointer-events-none" aria-hidden="true">
+    <defs>
+      <filter id="lx-lens-warp" x="-4%" y="-4%" width="108%" height="108%">
+        <feImage href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3CradialGradient id='r' cx='50%25' cy='50%25' r='52%25'%3E%3Cstop offset='0%25' stop-color='%23808080'/%3E%3Cstop offset='58%25' stop-color='%23808080'/%3E%3Cstop offset='100%25' stop-color='%23cfcfcf'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='200' height='100' fill='url(%23r)'/%3E%3C/svg%3E"
+          result="map" x="0" y="0" width="100%" height="100%" preserveAspectRatio="none" />
+        <feDisplacementMap in="SourceGraphic" in2="map" scale="11"
+          xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- BACKDROP -->
+  <div class="fixed inset-0 mesh-bg pointer-events-none z-0"></div>
+  <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+    <div class="aurora-blob-1 -top-32 left-1/4"></div>
+  </div>
+
+  <!-- NAV -->
+  <div class="fixed top-6 left-0 right-0 mid px-6 z-50">
+    <nav class="apple-glass-nav row-between w-full max-w-5xl">
+      <span class="small strong tracking-tight">Luxe<span class="muted">·</span>Garur <span class="tiny muted">v5.0</span></span>
+      <div class="row-center gap-3">
+        <span class="apple-glass-pill">
+          <span class="alive"></span>
+          <span class="tiny">Live</span>
+        </span>
+        <span class="lqd-btn-wrap text-sm">
+          <span class="lqd-btn-shadow"></span>
+          <button class="lqd-btn lqd-btn-dark"><span>Get</span></button>
+        </span>
+      </div>
+    </nav>
+  </div>
+
+  <main class="container max-w-5xl relative z-10 stack gap-20 pt-32 pb-24">
+
+    <!-- HERO -->
+    <header class="stack gap-6 text-center py-8">
+      <p class="tiny text-sky-300 uppercase tracking-widest">iOS 26 · macOS Tahoe</p>
+      <h1 class="banner gradient-text leading-none">Liquid Glass</h1>
+      <p class="lead quiet balance mx-auto max-w-md">
+        Forms. Overlays. Navigation. Tables. State machine. Everything a real product needs.
+      </p>
+      <div class="cluster-center gap-3 mt-2">
+        <span class="lqd-btn-wrap text-base">
+          <span class="lqd-btn-shadow"></span>
+          <button class="lqd-btn"><span>Get Started</span></button>
+        </span>
+        <button class="apple-glass-button">
+          <span class="small">Read docs</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ═════════ FORMS ═════════ -->
+    <section>
+      <p class="tiny text-sky-300 uppercase tracking-widest mb-3">01 · Forms</p>
+      <h2 class="headline mb-4 max-w-lg">Glass form controls.</h2>
+      <p class="lead quiet mb-8 max-w-xl">
+        Seven controls — input, textarea, select, switch, slider, checkbox, radio. All glass, all accessible.
+      </p>
+
+      <div class="apple-glass-card stack gap-6 max-w-lg">
+        <!-- Text input -->
+        <div class="stack gap-2">
+          <label class="small medium">Email</label>
+          <input type="email" class="apple-glass-input" placeholder="you@example.com" />
+          <p class="tiny quiet">We'll never share your email.</p>
+        </div>
+
+        <!-- Textarea -->
+        <div class="stack gap-2">
+          <label class="small medium">Message</label>
+          <textarea class="apple-glass-textarea" placeholder="Type something..." rows="3"></textarea>
+        </div>
+
+        <!-- Select -->
+        <div class="stack gap-2">
+          <label class="small medium">Theme</label>
+          <select class="apple-glass-select">
+            <option>Dark</option>
+            <option>Light</option>
+            <option>Auto</option>
+          </select>
+        </div>
+
+        <!-- Switch -->
+        <div class="row-between">
+          <div class="stack gap-1">
+            <span class="small medium">Enable notifications</span>
+            <span class="tiny quiet">Get alerts when things happen</span>
+          </div>
+          <input type="checkbox" class="apple-glass-switch" />
+        </div>
+
+        <!-- Slider -->
+        <div class="stack gap-2">
+          <label class="small medium">Volume</label>
+          <input type="range" class="apple-glass-slider" min="0" max="100" value="65" />
+        </div>
+
+        <!-- Checkbox + Radio -->
+        <div class="grid-2 gap-4">
+          <label class="row-center gap-2 cursor-pointer">
+            <input type="checkbox" class="apple-glass-checkbox" checked />
+            <span class="small">Remember me</span>
+          </label>
+          <div class="stack gap-2">
+            <label class="row-center gap-2 cursor-pointer">
+              <input type="radio" name="plan" class="apple-glass-radio" checked />
+              <span class="small">Pro</span>
+            </label>
+            <label class="row-center gap-2 cursor-pointer">
+              <input type="radio" name="plan" class="apple-glass-radio" />
+              <span class="small">Team</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="row-between pt-2">
+          <button class="btn-luxe-glass small">Cancel</button>
+          <span class="lqd-btn-wrap text-sm">
+            <span class="lqd-btn-shadow"></span>
+            <button class="lqd-btn lqd-btn-primary"><span>Save changes</span></button>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ LQD STATES ═════════ -->
+    <section>
+      <p class="tiny text-sky-300 uppercase tracking-widest mb-3">02 · LQD States</p>
+      <h2 class="headline mb-4 max-w-lg">The full button state machine.</h2>
+      <p class="lead quiet mb-8 max-w-xl">
+        Rest, loading, success, error, disabled, primary. Click any — the conic border rotates, specular slides.
+      </p>
+
+      <div class="cluster-center gap-4">
+        <span class="lqd-btn-wrap text-sm">
+          <span class="lqd-btn-shadow"></span>
+          <button class="lqd-btn"><span>Default</span></button>
+        </span>
+        <span class="lqd-btn-wrap text-sm">
+          <span class="lqd-btn-shadow"></span>
+          <button class="lqd-btn lqd-btn-primary"><span>Primary</span></button>
+        </span>
+        <span class="lqd-btn-wrap text-sm">
+          <span class="lqd-btn-shadow"></span>
+          <button class="lqd-btn lqd-btn-loading"><span>Loading</span></button>
+        </span>
+        <span class="lqd-btn-wrap text-sm">
+          <span class="lqd-btn-shadow"></span>
+          <button class="lqd-btn lqd-btn-success"><span>✓ Success</span></button>
+        </span>
+        <span class="lqd-btn-wrap text-sm">
+          <span class="lqd-btn-shadow"></span>
+          <button class="lqd-btn lqd-btn-error"><span>✕ Error</span></button>
+        </span>
+        <span class="lqd-btn-wrap text-sm">
+          <span class="lqd-btn-shadow"></span>
+          <button class="lqd-btn lqd-btn-disabled"><span>Disabled</span></button>
+        </span>
+      </div>
+
+      <div class="cluster-center gap-4 mt-6">
+        <span class="lqd-btn-wrap text-sm">
+          <span class="lqd-btn-shadow"></span>
+          <button class="lqd-btn lqd-btn-dark"><span>Dark</span></button>
+        </span>
+        <span class="lqd-btn-wrap text-sm">
+          <span class="lqd-btn-shadow"></span>
+          <button class="lqd-btn lqd-btn-iris"><span>Iris</span></button>
+        </span>
+        <span class="lqd-btn-wrap text-sm">
+          <span class="lqd-btn-shadow"></span>
+          <button class="lqd-btn lqd-btn-holo"><span>Holo</span></button>
+        </span>
+      </div>
+    </section>
+
+    <!-- ═════════ NAVIGATION ═════════ -->
+    <section>
+      <p class="tiny text-sky-300 uppercase tracking-widest mb-3">03 · Navigation</p>
+      <h2 class="headline mb-4 max-w-lg">Every Apple nav pattern.</h2>
+      <p class="lead quiet mb-8 max-w-xl">
+        Segmented control, sidebar, nav links. All glass, all quiet.
+      </p>
+
+      <!-- Segmented control -->
+      <div class="stack gap-3 mb-8">
+        <p class="small medium">Segmented control</p>
+        <div class="apple-glass-segmented">
+          <button class="apple-glass-segmented-item" aria-selected="true">Overview</button>
+          <button class="apple-glass-segmented-item">Analytics</button>
+          <button class="apple-glass-segmented-item">Settings</button>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="stack gap-3">
+        <p class="small medium">Sidebar</p>
+        <div class="apple-glass-sidebar max-w-xs">
+          <a class="apple-glass-sidebar-item" aria-current="page">
+            <span>🏠</span><span>Home</span>
+          </a>
+          <a class="apple-glass-sidebar-item">
+            <span>📊</span><span>Dashboard</span>
+          </a>
+          <a class="apple-glass-sidebar-item">
+            <span>⚙️</span><span>Settings</span>
+          </a>
+          <a class="apple-glass-sidebar-item">
+            <span>👤</span><span>Profile</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ TABLE ═════════ -->
+    <section>
+      <p class="tiny text-sky-300 uppercase tracking-widest mb-3">04 · Tables</p>
+      <h2 class="headline mb-4 max-w-lg">Glass tables, actually readable.</h2>
+      <p class="lead quiet mb-8 max-w-xl">
+        Sticky glass header, hover-highlighted rows. Zero contrast issues.
+      </p>
+
+      <div class="apple-glass-card p-0 overflow-hidden">
+        <table class="apple-glass-table">
+          <thead class="apple-glass-table-header">
+            <tr>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Role</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="apple-glass-table-row">
+              <td>Barshan Sarkar</td>
+              <td><span class="apple-glass-badge"><span class="alive"></span>Active</span></td>
+              <td>Owner</td>
+              <td class="text-right"><button class="apple-glass-pill cursor-pointer">Edit</button></td>
+            </tr>
+            <tr class="apple-glass-table-row">
+              <td>Priya Sharma</td>
+              <td><span class="apple-glass-badge"><span class="alive"></span>Active</span></td>
+              <td>Admin</td>
+              <td class="text-right"><button class="apple-glass-pill cursor-pointer">Edit</button></td>
+            </tr>
+            <tr class="apple-glass-table-row">
+              <td>Arjun Das</td>
+              <td><span class="apple-glass-badge">Invited</span></td>
+              <td>Member</td>
+              <td class="text-right"><button class="apple-glass-pill cursor-pointer">Edit</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═════════ OVERLAYS ═════════ -->
+    <section>
+      <p class="tiny text-sky-300 uppercase tracking-widest mb-3">05 · Overlays</p>
+      <h2 class="headline mb-4 max-w-lg">Modal, sheet, toast, tooltip.</h2>
+      <p class="lead quiet mb-8 max-w-xl">
+        Click any to open. Sheet slides from bottom, drawer from side, toast from top-right.
+      </p>
+
+      <div class="cluster-center gap-3">
+        <button class="apple-glass-button" onclick="document.getElementById('demo-modal').classList.remove('hidden')">
+          <span class="small">Open Modal</span>
+        </button>
+        <button class="apple-glass-button" onclick="document.getElementById('demo-sheet').setAttribute('data-open', 'true')">
+          <span class="small">Open Sheet</span>
+        </button>
+        <button class="apple-glass-button" onclick="document.getElementById('demo-drawer').setAttribute('data-open', 'true')">
+          <span class="small">Open Drawer</span>
+        </button>
+        <button class="apple-glass-button" onclick="document.getElementById('demo-toast').classList.remove('hidden')">
+          <span class="small">Show Toast</span>
+        </button>
+        <span class="apple-glass-button apple-glass-tooltip cursor-pointer" data-tooltip="This is a glass tooltip">
+          <span class="small">Hover me</span>
+        </span>
+      </div>
+
+      <!-- Modal -->
+      
+
+      <!-- Sheet -->
+      <div id="demo-sheet" class="apple-glass-sheet" data-open="false">
+        <div class="stack gap-4 max-w-lg mx-auto">
+          <h3 class="title">Share</h3>
+          <p class="small quiet">Send this page to anyone.</p>
+          <div class="grid-4 gap-3">
+            <button class="apple-glass-pill cursor-pointer p-4 stack gap-1">
+              <span class="text-2xl">📧</span><span class="tiny">Email</span>
+            </button>
+            <button class="apple-glass-pill cursor-pointer p-4 stack gap-1">
+              <span class="text-2xl">💬</span><span class="tiny">Message</span>
+            </button>
+            <button class="apple-glass-pill cursor-pointer p-4 stack gap-1">
+              <span class="text-2xl">🔗</span><span class="tiny">Link</span>
+            </button>
+            <button class="apple-glass-pill cursor-pointer p-4 stack gap-1">
+              <span class="text-2xl">📋</span><span class="tiny">Copy</span>
+            </button>
+          </div>
+          <button class="apple-glass-button mt-2" onclick="document.getElementById('demo-sheet').setAttribute('data-open', 'false')">
+            <span class="small">Done</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Drawer -->
+      <div id="demo-drawer" class="apple-glass-drawer" data-open="false">
+        <div class="stack gap-4">
+          <div class="row-between">
+            <h3 class="title">Menu</h3>
+            <button class="apple-glass-pill cursor-pointer" onclick="document.getElementById('demo-drawer').setAttribute('data-open', 'false')">
+              ✕
+            </button>
+          </div>
+          <div class="stack gap-1 mt-2">
+            <a class="apple-glass-sidebar-item" aria-current="page">
+              <span>🏠</span><span>Home</span>
+            </a>
+            <a class="apple-glass-sidebar-item">
+              <span>📊</span><span>Dashboard</span>
+            </a>
+            <a class="apple-glass-sidebar-item">
+              <span>⚙️</span><span>Settings</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toast -->
+      <div id="demo-toast" class="apple-glass-toast hidden">
+        <span class="text-xl">✓</span>
+        <div class="stack gap-1 flex-1">
+          <span class="small strong">Changes saved</span>
+          <span class="tiny quiet">Your profile has been updated.</span>
+        </div>
+        <button class="cursor-pointer muted" onclick="document.getElementById('demo-toast').classList.add('hidden')">✕</button>
+      </div>
+    </section>
+
+    <!-- ═════════ MATERIALS ═════════ -->
+    <section>
+      <p class="tiny text-sky-300 uppercase tracking-widest mb-3">06 · Materials</p>
+      <h2 class="headline mb-4 max-w-lg">All glass variants.</h2>
+
+      <div class="grid-4 gap-4">
+        <div class="apple-glass stack gap-2 p-5">
+          <p class="tiny">Default</p>
+          <p class="small strong">apple-glass</p>
+        </div>
+        <div class="apple-glass-light stack gap-2 p-5">
+          <p class="tiny">Light</p>
+          <p class="small strong">apple-glass-light</p>
+        </div>
+        <div class="apple-glass-dark stack gap-2 p-5">
+          <p class="tiny">Dark</p>
+          <p class="small strong">apple-glass-dark</p>
+        </div>
+        <div class="glass-lens stack gap-2 p-5">
+          <p class="tiny">Lens</p>
+          <p class="small strong">glass-lens</p>
+        </div>
+      </div>
+
+      <div class="grid-4 gap-4 mt-4">
+        <div class="drop-water-card stack gap-2 p-5">
+          <p class="tiny">Water Drop</p>
+          <p class="small strong">drop-water-card</p>
+        </div>
+        <div class="fluid-glass stack gap-2 p-5">
+          <p class="tiny">Fluid</p>
+          <p class="small strong">fluid-glass</p>
+        </div>
+        <div class="chrome-surface rounded-2xl stack gap-2 p-5 h-32">
+          <p class="tiny opacity-60">Chrome</p>
+          <p class="chrome-text text-2xl font-black">CHROME</p>
+        </div>
+        <div class="holo-surface rounded-2xl stack gap-2 p-5 h-32">
+          <p class="tiny opacity-70">Holo</p>
+          <p class="text-2xl font-black text-white">HOLO</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ CTA ═════════ -->
+    <section>
+      <div class="apple-glass-panel text-center stack gap-6">
+        <h2 class="headline gradient-text">Ship it.</h2>
+        <p class="lead quiet mx-auto max-w-sm">
+          Everything a real product needs. Forms, overlays, navigation, tables, states.
+        </p>
+        <div class="cluster-center gap-3 mt-2">
+          <span class="lqd-btn-wrap text-lg">
+            <span class="lqd-btn-shadow"></span>
+            <button class="lqd-btn"><span>Install</span></button>
+          </span>
+          <button class="apple-glass-button">
+            <span class="small">Read docs</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="text-center py-8 stack gap-2 border-t border-white/5">
+      <p class="tiny quiet">Barshan Sarkar · GarurSaili-CSS · plugin-luxe v5.0.0</p>
+    </footer>
+  </main>
+
+  <script>
+    document.querySelectorAll('[data-magnetic]').forEach(el => {
+      el.addEventListener('mousemove', e => {
+        const r = el.getBoundingClientRect();
+        el.style.setProperty('--mx-offset', ((e.clientX - (r.left + r.width / 2)) * 0.15) + 'px');
+        el.style.setProperty('--my-offset', ((e.clientY - (r.top + r.height / 2)) * 0.15) + 'px');
+      });
+      el.addEventListener('mouseleave', () => {
+        el.style.setProperty('--mx-offset', '0px');
+        el.style.setProperty('--my-offset', '0px');
+      });
+    });
+  </script>
+</body>
+</html>

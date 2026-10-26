@@ -2,7 +2,7 @@
 // GarurSaili-CSS — Native Core
 // The Semantic Indian CSS Framework
 // Author: Barshan Sarkar · Malda, West Bengal, India
-// Version: 1.4.0
+// Version: 1.5.4
 // ═══════════════════════════════════════════════════════════════════
 use memmap2::Mmap;
 use napi::bindgen_prelude::*;
@@ -24,7 +24,7 @@ mod utilities;
 mod utilities_extended;
 mod utilities_v4;
 mod variants;
-
+mod prefix_index; 
 #[napi(object)]
 #[derive(Clone)]
 pub struct ParsedToken {
@@ -380,6 +380,68 @@ pub fn export_cache() -> String {
     }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════
+// Plugin System v2 — NAPI bridges for src/plugin_system.ts
+// ═══════════════════════════════════════════════════════════════════
+
+/// Batch register plugin utilities. Entries are `[name, decls]` pairs.
+#[napi]
+pub fn register_plugin_utilities_batch(entries: Vec<Vec<String>>) {
+    let pairs: Vec<(String, String)> = entries
+        .into_iter()
+        .filter(|v| v.len() == 2)
+        .map(|mut v| {
+            let b = v.pop().unwrap_or_default();
+            let a = v.pop().unwrap_or_default();
+            (a, b)
+        })
+        .collect();
+    plugin::register_utilities_batch(pairs);
+}
+
+/// Batch register plugin components. Entries are `[name, decls]` pairs.
+#[napi]
+pub fn register_plugin_components_batch(entries: Vec<Vec<String>>) {
+    let pairs: Vec<(String, String)> = entries
+        .into_iter()
+        .filter(|v| v.len() == 2)
+        .map(|mut v| {
+            let b = v.pop().unwrap_or_default();
+            let a = v.pop().unwrap_or_default();
+            (a, b)
+        })
+        .collect();
+    plugin::register_components_batch(pairs);
+}
+
+/// Register arbitrary at-rules (`@keyframes`, `@font-face`, `@property`, ...).
+#[napi]
+pub fn register_plugin_at_rules(rules: Vec<String>) {
+    plugin::register_at_rules(rules);
+}
+
+/// Clear all plugin registries (dev hot-reload).
+#[napi]
+pub fn clear_plugin_registries() {
+    plugin::clear_plugin_registries();
+}
+
+/// Return registered plugin components as JSON: `[[name, decls], ...]`.
+#[napi]
+pub fn get_plugin_components_json() -> String {
+    serde_json::to_string(&plugin::get_plugin_components())
+        .unwrap_or_else(|_| "[]".into())
+}
+
+/// Return registered plugin at-rules as JSON: `[css, css, ...]`.
+#[napi]
+pub fn get_plugin_at_rules_json() -> String {
+    serde_json::to_string(&plugin::get_at_rules())
+        .unwrap_or_else(|_| "[]".into())
+}
+
+
 #[napi]
 pub fn import_cache(data: String) -> bool {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -389,4 +451,89 @@ pub fn import_cache(data: String) -> bool {
         Ok(snap) => engine::import_cache_snapshot(snap),
         Err(_) => false,
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ✨ NEW — Bulk registration bridge (single call, fast path)
+// ═══════════════════════════════════════════════════════════════════
+
+/// Bulk register plugin utilities + components + at-rules in ONE call.
+/// Use this instead of N individual `register_plugin_utilities_batch` calls.
+#[napi]
+pub fn register_plugin_bulk(
+    utilities: Vec<Vec<String>>,
+    components: Vec<Vec<String>>,
+    at_rules: Vec<String>,
+) {
+    let u: Vec<(String, String)> = utilities
+        .into_iter()
+        .filter(|v| v.len() == 2)
+        .map(|mut v| {
+            let b = v.pop().unwrap_or_default();
+            let a = v.pop().unwrap_or_default();
+            (a, b)
+        })
+        .collect();
+
+    let c: Vec<(String, String)> = components
+        .into_iter()
+        .filter(|v| v.len() == 2)
+        .map(|mut v| {
+            let b = v.pop().unwrap_or_default();
+            let a = v.pop().unwrap_or_default();
+            (a, b)
+        })
+        .collect();
+
+    plugin::register_plugin_bulk(u, c, at_rules);
+}
+
+/// Return plugin utility count (for stats).
+#[napi]
+pub fn plugin_utility_count() -> u32 {
+    plugin::plugin_utility_count()
+}
+
+// lib.rs এর শেষে যোগ করো:
+
+#[napi]
+pub fn build_prefix_index(entries: Vec<Vec<String>>) -> napi::Result<()> {
+    let parsed = entries
+        .into_iter()
+        .filter(|v| v.len() == 2)
+        .map(|mut v| {
+            let b = v.pop().unwrap_or_default();
+            let a = v.pop().unwrap_or_default();
+            (a, b)
+        })
+        .collect();
+
+    prefix_index::build_index(parsed)
+        .map_err(napi::Error::from_reason)
+}
+
+#[napi]
+pub fn find_matching_plugins(classes: Vec<String>) -> Vec<String> {
+    prefix_index::find_matching_plugins(&classes)
+}
+
+#[napi]
+pub fn clear_prefix_index() {
+    prefix_index::clear_index();
+}
+
+#[napi]
+pub fn build_spacing_index(entries: Vec<Vec<String>>) -> Result<()> {
+    let parsed = entries
+        .into_iter()
+        .filter(|v| v.len() == 2)
+        .map(|mut v| {
+            let b = v.pop().unwrap_or_default();
+            let a = v.pop().unwrap_or_default();
+            (a, b)
+        })
+        .collect();
+
+    crate::prefix_index::build_spacing_index(parsed)
+        .map_err(napi::Error::from_reason)
 }

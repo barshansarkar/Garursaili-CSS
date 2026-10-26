@@ -12,28 +12,57 @@ import os from "node:os";
 import { execSync } from "node:child_process";
 import pc from "picocolors";
 import { loadConfig, applyConfig } from "./config.js";
-import { hasNative, nativeVersion, runSscWithStats, findFiles, minifyCss, exportCache, importCache, } from "./native.js";
-import { fileURLToPath } from "node:url";
-// Read version from GarurSaili-CSS's OWN package.json — not the user's cwd.
+import { hasNative, nativeVersion, runSscWithStats, findFiles, minifyCss, exportCache, importCache, extractClasses, buildSpacingIndex, } from "./native.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { PluginRegistry, } from "./plugin_system.js";
+import { bootstrapPlugins, bootstrapPluginsLazy, prepareBuild, finalizeBuild, } from "./plugin_runner.js";
+// ───────────────────────────────────────────────
+// Version (from package.json)
+// ───────────────────────────────────────────────
 const VERSION = (() => {
     try {
         const here = path.dirname(fileURLToPath(import.meta.url));
         const candidates = [
-            path.resolve(here, "../package.json"), // dist/cli.js → ./package.json
-            path.resolve(here, "../../package.json"), // for nested dist
+            path.resolve(here, "../package.json"),
+            path.resolve(here, "../../package.json"),
         ];
         for (const pkgPath of candidates) {
             if (fs.existsSync(pkgPath)) {
                 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-                if (pkg.name === "garursaili-css") {
-                    return pkg.version || "1.4.0";
-                }
+                if (pkg.name === "garursaili-css")
+                    return pkg.version || "1.5.3";
             }
         }
     }
     catch { /* ignore */ }
-    return "1.4.0";
+    return "1.5.4";
 })();
+// ───────────────────────────────────────────────
+// Async config loader (works for ESM + .ts configs)
+// ───────────────────────────────────────────────
+async function loadFullConfigAsync() {
+    let cfg = {};
+    try {
+        cfg = loadConfig();
+    }
+    catch { /* ignore */ }
+    const p = path.resolve(process.cwd(), "garur.config.js");
+    if (fs.existsSync(p)) {
+        try {
+            const mod = await import(pathToFileURL(p).href);
+            const raw = mod.default || mod;
+            if (raw && typeof raw === "object") {
+                cfg = { ...cfg, ...raw };
+            }
+        }
+        catch (e) {
+            if (process.env.GARUR_DEBUG) {
+                console.error("[garur] config async-load failed:", e);
+            }
+        }
+    }
+    return cfg;
+}
 const banner = pc.cyan(`  🦅 GarurSaili-CSS v${VERSION}`);
 const tagline = pc.gray("  The Semantic Indian CSS Framework\n") +
     pc.gray("  By Barshan Sarkar · Malda, West Bengal, India\n");
@@ -49,11 +78,8 @@ const DEFAULT_IGNORES = [
     "node_modules/**", "dist/**", ".git/**",
     "build/**", "coverage/**", "**/*.map", "**/*.min.*",
     "rust/target/**", "**/*.node",
-    // NOTE: `test-*.html` was too aggressive — matched `test-theme/*.html`.
-    // Only ignore loose test files at project root:
     "test-*.test.html",
 ];
-// Format should only touch markup — never source .ts/.js
 const FORMAT_INCLUDES = ["**/*.{html,htm,vue,svelte,astro,jsx,tsx,mdx}"];
 const STATS_FILE = () => path.resolve(process.cwd(), ".garur-cache-stats.json");
 // ═══════════════════════════════════════════════════════════════
@@ -89,13 +115,9 @@ function bar(pct, width = 16) {
 function loadPersistentStats() {
     const file = STATS_FILE();
     const def = {
-        totalBuilds: 0,
-        totalFiles: 0,
-        totalClasses: 0,
-        cacheHits: 0,
-        cacheMisses: 0,
-        firstBuild: "",
-        lastBuild: "",
+        totalBuilds: 0, totalFiles: 0, totalClasses: 0,
+        cacheHits: 0, cacheMisses: 0,
+        firstBuild: "", lastBuild: "",
     };
     try {
         if (fs.existsSync(file)) {
@@ -158,14 +180,99 @@ function resetPersistentStats() {
 // Build
 // ═══════════════════════════════════════════════════════════════
 const CACHE_FILE = (cwd) => path.resolve(cwd, ".garur-cache.bin");
-function buildOnce(cwd, includes, ignores) {
-    const cfg = loadConfig();
+let _spacingInit = false;
+/**
+ * ✨ Initialize FST / ART spacing index — ONCE per process.
+ *
+ * This populates a Rust FST (Adaptive Radix Tree) so that
+ * `try_dynamic_spacing` uses O(1) prefix lookup instead of
+ * looping over ~60 prefixes per class.
+ *
+ * If this is skipped → fallback `MAP` in `try_dynamic_spacing`
+ * still works (same output, no speedup).
+ */
+function initSpacingIndex() {
+    if (_spacingInit)
+        return;
+    _spacingInit = true;
+    if (process.env.GARUR_DEBUG) {
+        console.log(pc.dim("  [debug] Building FST Spacing Index..."));
+    }
+    buildSpacingIndex([
+        // Padding
+        ["p-", "padding:{0}"],
+        ["px-", "padding-left:{0};padding-right:{0}"],
+        ["py-", "padding-top:{0};padding-bottom:{0}"],
+        ["pt-", "padding-top:{0}"],
+        ["pb-", "padding-bottom:{0}"],
+        ["pl-", "padding-left:{0}"],
+        ["pr-", "padding-right:{0}"],
+        ["ps-", "padding-inline-start:{0}"],
+        ["pe-", "padding-inline-end:{0}"],
+        // Margin
+        ["m-", "margin:{0}"],
+        ["mx-", "margin-left:{0};margin-right:{0}"],
+        ["my-", "margin-top:{0};margin-bottom:{0}"],
+        ["mt-", "margin-top:{0}"],
+        ["mb-", "margin-bottom:{0}"],
+        ["ml-", "margin-left:{0}"],
+        ["mr-", "margin-right:{0}"],
+        ["ms-", "margin-inline-start:{0}"],
+        ["me-", "margin-inline-end:{0}"],
+        // Gap
+        ["gap-", "gap:{0}"],
+        ["gap-x-", "column-gap:{0}"],
+        ["gap-y-", "row-gap:{0}"],
+        // Sizing
+        ["w-", "width:{0}"],
+        ["h-", "height:{0}"],
+        ["size-", "width:{0};height:{0}"],
+        ["min-w-", "min-width:{0}"],
+        ["min-h-", "min-height:{0}"],
+        ["max-w-", "max-width:{0}"],
+        ["max-h-", "max-height:{0}"],
+        ["basis-", "flex-basis:{0}"],
+        // Position
+        ["top-", "top:{0}"],
+        ["right-", "right:{0}"],
+        ["bottom-", "bottom:{0}"],
+        ["left-", "left:{0}"],
+        ["inset-", "inset:{0}"],
+        ["inset-x-", "left:{0};right:{0}"],
+        ["inset-y-", "top:{0};bottom:{0}"],
+        ["start-", "inset-inline-start:{0}"],
+        ["end-", "inset-inline-end:{0}"],
+        // Typography
+        ["leading-", "line-height:{0}"],
+        ["indent-", "text-indent:{0}"],
+        ["tracking-", "letter-spacing:{0}"],
+        ["underline-offset-", "text-underline-offset:{0}"],
+        // Scroll
+        ["scroll-mx-", "scroll-margin-left:{0};scroll-margin-right:{0}"],
+        ["scroll-my-", "scroll-margin-top:{0};scroll-margin-bottom:{0}"],
+        ["scroll-mt-", "scroll-margin-top:{0}"],
+        ["scroll-mr-", "scroll-margin-right:{0}"],
+        ["scroll-mb-", "scroll-margin-bottom:{0}"],
+        ["scroll-ml-", "scroll-margin-left:{0}"],
+        ["scroll-m-", "scroll-margin:{0}"],
+        ["scroll-px-", "scroll-padding-left:{0};scroll-padding-right:{0}"],
+        ["scroll-py-", "scroll-padding-top:{0};scroll-padding-bottom:{0}"],
+        ["scroll-pt-", "scroll-padding-top:{0}"],
+        ["scroll-pr-", "scroll-padding-right:{0}"],
+        ["scroll-pb-", "scroll-padding-bottom:{0}"],
+        ["scroll-pl-", "scroll-padding-left:{0}"],
+        ["scroll-p-", "scroll-padding:{0}"],
+    ]);
+}
+async function buildOnce(cwd, includes, ignores) {
+    const cfg = await loadFullConfigAsync();
     applyConfig(cfg);
     if (!hasNative()) {
         console.log(pc.red("  ❌ Native core not loaded."));
         return null;
     }
-    // ── Load persistent cache from previous run
+    // ✨ FST / ART Spacing Index — initialize once
+    initSpacingIndex();
     const cacheFile = CACHE_FILE(cwd);
     if (fs.existsSync(cacheFile)) {
         try {
@@ -194,10 +301,39 @@ function buildOnce(cwd, includes, ignores) {
         important: cfg.important,
         palette: cfg.palette,
     });
+    // ✨ NEW: initialize plugins (lazy, once per process)
+    const userPlugins = cfg.plugins ?? [];
+    const hasPlugins = userPlugins.length > 0;
+    if (hasPlugins) {
+        const allClasses = new Set();
+        for (const file of files) {
+            try {
+                const content = fs.readFileSync(file, "utf-8");
+                for (const cls of extractClasses(content))
+                    allClasses.add(cls);
+            }
+            catch { /* skip */ }
+        }
+        await bootstrapPluginsLazy(cfg, allClasses);
+        await prepareBuild({
+            cwd,
+            files,
+            config: cfg,
+            theme: cfg.theme,
+        });
+    }
     const stats = runSscWithStats(files, cfgJson);
-    const css = stats.css;
+    let css = stats.css;
     if (!css)
         return null;
+    if (hasPlugins) {
+        css = await finalizeBuild(css, {
+            cwd,
+            files,
+            config: cfg,
+            theme: cfg.theme,
+        });
+    }
     const minified = minifyCss(css);
     const result = {
         css,
@@ -210,7 +346,6 @@ function buildOnce(cwd, includes, ignores) {
         cacheHits: stats.cacheHits,
         cacheMisses: stats.cacheMisses,
     };
-    // ── Save persistent cache for next run
     try {
         const exported = exportCache();
         if (exported)
@@ -250,10 +385,8 @@ export default {
   },
   darkMode: 'class',
   important: false,
-  palette: {
-    // Add custom colors here:
-    // brand: { 500: '#6366f1', 600: '#4f46e5' }
-  }
+  palette: {},
+  plugins: [],
 };
 `;
     fs.writeFileSync(p, content, "utf-8");
@@ -294,8 +427,8 @@ function cmdClean() {
     const caches = [
         path.resolve(process.cwd(), "dist/.garur-cache.json"),
         path.resolve(process.cwd(), ".garur-cache.json"),
-        path.resolve(process.cwd(), ".garur-cache.bin"), // ← ADD
-        path.resolve(process.cwd(), ".garur-cache-stats.json"), // ← ADD
+        path.resolve(process.cwd(), ".garur-cache.bin"),
+        path.resolve(process.cwd(), ".garur-cache-stats.json"),
         path.resolve(process.cwd(), "build/garur.css"),
         path.resolve(process.cwd(), "build/garur.min.css"),
     ];
@@ -322,8 +455,10 @@ function cmdNative() {
     console.log(`    CWD:      ${process.cwd()}`);
 }
 // ─── doctor ───
-function cmdDoctor() {
+async function cmdDoctor() {
     console.log(pc.cyan("  🩺 GarurSaili Doctor\n"));
+    const cfg = await loadFullConfigAsync();
+    const userPlugins = cfg.plugins ?? [];
     const checks = [];
     checks.push({
         name: "Native engine",
@@ -336,11 +471,12 @@ function cmdDoctor() {
         ok: fs.existsSync(cfgPath),
         msg: fs.existsSync(cfgPath) ? "garur.config.js" : "missing — run `garur init`",
     });
-    const distPath = path.resolve(process.cwd(), "dist");
     checks.push({
-        name: "Output folder",
-        ok: fs.existsSync(distPath),
-        msg: fs.existsSync(distPath) ? "dist/" : "will be created on build",
+        name: "Plugins",
+        ok: true,
+        msg: userPlugins.length === 0
+            ? "none (built-in only)"
+            : `${userPlugins.length} registered`,
     });
     const nodeMajor = parseInt(process.version.slice(1).split(".")[0]);
     checks.push({
@@ -358,9 +494,7 @@ function cmdDoctor() {
     checks.push({
         name: "CSS output",
         ok: fs.existsSync(cssPath),
-        msg: fs.existsSync(cssPath)
-            ? fmtBytes(fs.statSync(cssPath).size)
-            : "run `garur build`",
+        msg: fs.existsSync(cssPath) ? fmtBytes(fs.statSync(cssPath).size) : "run `garur build`",
     });
     for (const c of checks) {
         const icon = c.ok ? pc.green("✓") : pc.yellow("⚠");
@@ -401,14 +535,13 @@ function cmdStats() {
     console.log("");
 }
 // ─── analyze ───
-function cmdAnalyze(includes, ignores, top = 15) {
+async function cmdAnalyze(includes, ignores, top = 15) {
     console.log(pc.cyan("  📊 Analyzing project...\n"));
-    const result = buildOnce(process.cwd(), includes, ignores);
+    const result = await buildOnce(process.cwd(), includes, ignores);
     if (!result) {
         console.log(pc.red("  No CSS generated."));
         return;
     }
-    // Count utilities
     const classRe = /\.([a-zA-Z][a-zA-Z0-9_:\\/-]*)/g;
     const counts = new Map();
     let m;
@@ -416,7 +549,6 @@ function cmdAnalyze(includes, ignores, top = 15) {
         const cls = m[1].replace(/\\/g, "");
         counts.set(cls, (counts.get(cls) || 0) + 1);
     }
-    // Group by base utility (strip variants & arbitrary)
     const byType = new Map();
     for (const [cls] of counts) {
         const stripped = cls.replace(/^([a-z-]+:)+/i, "");
@@ -434,9 +566,7 @@ function cmdAnalyze(includes, ignores, top = 15) {
     console.log(`    Build time:         ${fmtMs(result.elapsedMs)}`);
     console.log(`    Compression:        ${((1 - result.minBytes / result.cssBytes) * 100).toFixed(1)}%`);
     console.log(pc.bold("\n  Top categories:"));
-    const sorted = Array.from(byType.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, top);
+    const sorted = Array.from(byType.entries()).sort((a, b) => b[1] - a[1]).slice(0, top);
     const max = sorted[0]?.[1] || 1;
     for (const [cat, count] of sorted) {
         const barStr = "█".repeat(Math.round((count / max) * 20));
@@ -457,10 +587,15 @@ function cmdAnalyze(includes, ignores, top = 15) {
     console.log("");
 }
 // ─── benchmark ───
-function cmdBenchmark(runs = 5) {
+async function cmdBenchmark(runs = 5) {
     console.log(pc.cyan(`  ⚡ Benchmarking (${runs} runs)...\n`));
-    const cfg = loadConfig();
+    const cfg = await loadFullConfigAsync();
     applyConfig(cfg);
+    // Ensure FST is initialized before benchmark
+    // Ensure FST is initialized before benchmark
+    const _tFst = Date.now();
+    initSpacingIndex();
+    console.log(pc.dim(`  FST init: ${Date.now() - _tFst}ms\n`));
     const files = findFiles(process.cwd(), DEFAULT_INCLUDES, DEFAULT_IGNORES);
     console.log(pc.dim(`  ${files.length} files found\n`));
     const cfgJson = JSON.stringify({
@@ -481,7 +616,13 @@ function cmdBenchmark(runs = 5) {
         lastBuildHits = stats.cacheHits;
         lastBuildMisses = stats.cacheMisses;
         lastUnique = stats.uniqueClasses;
-        console.log(pc.dim(`    Run ${i + 1}: ${elapsed}ms (${fmtBytes(stats.css.length)})`));
+        // ✨ Show where time went
+        if (process.env.GARUR_DEBUG && i === 0) {
+            console.log(pc.dim(`    Run ${i + 1}: ${elapsed}ms (cold, cache warmup)`));
+        }
+        else {
+            console.log(pc.dim(`    Run ${i + 1}: ${elapsed}ms (${fmtBytes(stats.css.length)})`));
+        }
     }
     const avg = results.reduce((a, b) => a + b, 0) / results.length;
     const min = Math.min(...results);
@@ -501,13 +642,13 @@ function cmdBenchmark(runs = 5) {
     console.log("");
 }
 // ─── config ───
-function cmdConfig(action, key) {
+async function cmdConfig(action, key) {
     const cfgPath = path.resolve(process.cwd(), "garur.config.js");
     if (!fs.existsSync(cfgPath)) {
         console.log(pc.yellow("  No config. Run `garur init`."));
         return;
     }
-    const cfg = loadConfig();
+    const cfg = await loadFullConfigAsync();
     if (!action || action === "show") {
         console.log(pc.cyan("  ⚙️  Config\n"));
         console.log(pc.bold("  Breakpoints:"));
@@ -517,6 +658,13 @@ function cmdConfig(action, key) {
         console.log(pc.bold("\n  Dark mode:  "), cfg.darkMode);
         console.log(pc.bold("  Important:  "), cfg.important);
         console.log(pc.bold("  Palette:    "), Object.keys(cfg.palette || {}).join(", ") || "(none)");
+        const plugins = cfg.plugins ?? [];
+        console.log(pc.bold("  Plugins:    "), plugins.length === 0 ? "(none)" : plugins.length);
+        if (plugins.length > 0) {
+            for (const p of plugins) {
+                console.log(`    • ${p?.name ?? "unnamed"}`);
+            }
+        }
         console.log("");
         return;
     }
@@ -570,11 +718,6 @@ function cmdCacheStats(json = false) {
     console.log("");
     console.log(pc.dim(`  Stats file: ${path.relative(process.cwd(), STATS_FILE())}`));
     console.log("");
-    console.log(pc.yellow("  ⚠ Note: This is cross-process cumulative."));
-    console.log(pc.dim("    Each cold `garur build` starts fresh — 0% is normal."));
-    console.log(pc.dim("    Persistent cache is now enabled via ") + pc.cyan(".garur-cache.bin"));
-    console.log(pc.dim("    Run ") + pc.cyan("garur benchmark") + pc.dim(" for in-process measurement."));
-    console.log("");
 }
 function cmdCacheStatsReset() {
     resetPersistentStats();
@@ -587,7 +730,7 @@ async function cmdPreview(port = 3000) {
     const cssPath = path.join(distDir, "garur.css");
     if (!fs.existsSync(cssPath)) {
         console.log(pc.yellow("  No CSS found. Building first..."));
-        const result = buildOnce(cwd, DEFAULT_INCLUDES, DEFAULT_IGNORES);
+        const result = await buildOnce(cwd, DEFAULT_INCLUDES, DEFAULT_IGNORES);
         if (result)
             writeCss(cssPath, result);
     }
@@ -727,7 +870,7 @@ async function startWatch(cwd, includes, ignores, outputFile) {
     console.log(pc.dim(`  Patterns: ${includes.join(", ")}`));
     console.log(pc.dim(`  Output:   ${path.relative(cwd, outputFile)}\n`));
     console.log(pc.cyan("  Initial build..."));
-    const initial = buildOnce(cwd, includes, ignores);
+    const initial = await buildOnce(cwd, includes, ignores);
     if (initial) {
         writeCss(outputFile, initial);
         console.log(pc.green(`  ✓ Built in ${initial.elapsedMs}ms`) +
@@ -747,7 +890,7 @@ async function startWatch(cwd, includes, ignores, outputFile) {
         isBuilding = true;
         buildCount++;
         try {
-            const result = buildOnce(cwd, includes, ignores);
+            const result = await buildOnce(cwd, includes, ignores);
             if (result) {
                 writeCss(outputFile, result);
                 const time = new Date().toLocaleTimeString();
@@ -839,6 +982,92 @@ async function startWatch(cwd, includes, ignores, outputFile) {
         });
     });
 }
+// ─── plugins ───
+async function cmdPlugins() {
+    const cfg = await loadFullConfigAsync();
+    const userPlugins = cfg.plugins ?? [];
+    if (userPlugins.length > 0) {
+        console.log(pc.dim(`  Loading ${userPlugins.length} plugin(s)...`));
+        try {
+            await bootstrapPlugins(cfg);
+        }
+        catch (e) {
+            console.error(pc.red("  ❌ Plugin bootstrap failed:"), e.message);
+        }
+    }
+    const snap = PluginRegistry.instance.snapshot();
+    console.log(pc.cyan("\n  🔌 Plugin Registry\n"));
+    if (snap.plugins.length === 0) {
+        console.log(pc.gray("  No plugins registered."));
+        console.log(pc.dim("  Add plugins to `garur.config.js`:"));
+        console.log(pc.dim("    export default { plugins: [myPlugin] }"));
+        console.log("");
+        return;
+    }
+    console.log(`    Signature:        ${pc.dim(snap.signature)}`);
+    console.log(`    Plugins:          ${snap.plugins.length}`);
+    console.log(`    Static utilities: ${snap.utilities}`);
+    console.log(`    Components:       ${snap.components}`);
+    console.log(`    Match utilities:  ${snap.matchUtilities}`);
+    console.log(`    Match variants:   ${snap.matchVariants}`);
+    console.log(`    Rewrites:         ${snap.rewrites}`);
+    console.log(`    At-rules:         ${snap.atRules}`);
+    console.log(`    Tokens:           ${snap.tokens}`);
+    console.log("");
+    console.log(pc.bold("  Registered plugins:"));
+    for (const p of snap.plugins) {
+        const icon = p.enforce === "pre" ? "⚡" : p.enforce === "post" ? "🎯" : "•";
+        const ver = p.version ? pc.dim(` @${p.version}`) : "";
+        console.log(`    ${icon} ${p.name}${ver}`);
+    }
+    console.log("");
+}
+// ─── trace ───
+async function cmdTrace(cls) {
+    const cfg = await loadFullConfigAsync();
+    const userPlugins = cfg.plugins ?? [];
+    if (userPlugins.length > 0) {
+        try {
+            await bootstrapPlugins(cfg);
+        }
+        catch { /* ignore */ }
+    }
+    const src = PluginRegistry.instance.traceClass(cls);
+    console.log(pc.cyan(`  🔍 Trace: ${pc.bold(cls)}\n`));
+    if (src) {
+        console.log(`    Source:    ${pc.green(src.pluginName)}`);
+        console.log(`    Plugin ID: ${src.pluginId}`);
+        console.log(`    Kind:      ${src.kind}`);
+    }
+    else {
+        console.log(pc.yellow("    Source: built-in (Rust core) or unknown"));
+    }
+    const files = findFiles(process.cwd(), DEFAULT_INCLUDES, DEFAULT_IGNORES);
+    const usages = [];
+    for (const f of files) {
+        try {
+            const content = fs.readFileSync(f, "utf-8");
+            const escaped = cls.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const re = new RegExp(`\\b${escaped}\\b`, "g");
+            const matches = content.match(re);
+            if (matches) {
+                usages.push({ file: path.relative(process.cwd(), f), count: matches.length });
+            }
+        }
+        catch { /* skip */ }
+    }
+    if (usages.length > 0) {
+        console.log("");
+        console.log(pc.bold(`  Used in ${usages.length} file(s):`));
+        for (const u of usages.slice(0, 10)) {
+            console.log(`    ${u.file} ${pc.dim(`(${u.count}x)`)}`);
+        }
+        if (usages.length > 10) {
+            console.log(pc.dim(`    ... and ${usages.length - 10} more`));
+        }
+    }
+    console.log("");
+}
 // ═══════════════════════════════════════════════════════════════
 // Help
 // ═══════════════════════════════════════════════════════════════
@@ -877,6 +1106,10 @@ function printHelp() {
     console.log("    garur clean                 Remove cache + output");
     console.log("    garur native                Check native engine");
     console.log("    garur upgrade               Check for updates");
+    console.log("");
+    console.log(pc.bold("  Plugins:"));
+    console.log("    garur plugins               Show registered plugins");
+    console.log("    garur trace <class>         Trace which plugin emits a class");
     console.log("");
     console.log(pc.bold("  Info:"));
     console.log("    garur --version, -v         Show version");
@@ -942,7 +1175,7 @@ async function main() {
         return;
     }
     if (args.doctor || cmd === "doctor") {
-        cmdDoctor();
+        await cmdDoctor();
         return;
     }
     // ─── Cache stats ───
@@ -967,11 +1200,11 @@ async function main() {
     if (args.analyze || cmd === "analyze") {
         const patterns = args._.filter((a) => a !== "analyze");
         const includes = patterns.length ? patterns : DEFAULT_INCLUDES;
-        cmdAnalyze(includes, DEFAULT_IGNORES, args.top || 15);
+        await cmdAnalyze(includes, DEFAULT_IGNORES, args.top || 15);
         return;
     }
     if (args.benchmark || cmd === "benchmark") {
-        cmdBenchmark(parseInt(String(args.runs), 10) || 5);
+        await cmdBenchmark(parseInt(String(args.runs), 10) || 5);
         return;
     }
     // ─── Tools ───
@@ -980,7 +1213,20 @@ async function main() {
         return;
     }
     if (cmd === "config") {
-        cmdConfig(args._[1], args._[2]);
+        await cmdConfig(args._[1], args._[2]);
+        return;
+    }
+    if (cmd === "plugins") {
+        await cmdPlugins();
+        return;
+    }
+    if (cmd === "trace") {
+        const cls = args._[1];
+        if (!cls) {
+            console.log(pc.yellow("  Usage: garur trace <class>"));
+            return;
+        }
+        await cmdTrace(String(cls));
         return;
     }
     if (args.upgrade || cmd === "upgrade") {
@@ -999,6 +1245,7 @@ async function main() {
         "help", "version", "doctor", "stats", "analyze", "format",
         "benchmark", "upgrade", "preview", "config",
         "cache-stats", "cache-stats-reset",
+        "plugins", "trace",
     ]);
     const positionalPatterns = args._.filter((a) => typeof a === "string" && !KNOWN_CMDS.has(a));
     const includes = positionalPatterns.length
@@ -1013,7 +1260,7 @@ async function main() {
     // ─── Default: build ───
     console.log(pc.dim(`  Native:   ${hasNative() ? pc.green("✓") : pc.yellow("✗")}`));
     console.log(pc.dim(`  Patterns: ${includes.join(", ")}`));
-    const result = buildOnce(cwd, includes, DEFAULT_IGNORES);
+    const result = await buildOnce(cwd, includes, DEFAULT_IGNORES);
     if (!result) {
         if (!hasNative()) {
             console.log(pc.red("\n  ❌ Native core not loaded.\n"));

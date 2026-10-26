@@ -5,7 +5,7 @@
 // GarurSaili-CSS 
 // The Semantic Indian CSS Framework
 // Author: Barshan Sarkar · Malda, West Bengal, India
-// Version: 1.4.0
+// Version: 1.5.4
 // ═══════════════════════════════════════════════════════════════════
 use crate::css_input;
 use crate::engine;
@@ -180,8 +180,30 @@ pub fn run_with_options(files: &[String], config_json: &str, opts: SscOptions) -
     parts.push(preflight::layer().to_string());
     parts.push(preflight::properties().to_string());
     if opts.preflight {
-    parts.push(preflight::preflight_arc().as_ref().to_string());
-}
+        parts.push(preflight::preflight_arc().as_ref().to_string());
+    }
+
+    // ✨ NEW: plugin at-rules (@keyframes, @font-face, @property)
+    let plugin_at = crate::plugin::get_at_rules();
+    if !plugin_at.is_empty() {
+        parts.push(plugin_at.join("\n"));
+    }
+
+    // ✨ NEW: plugin components layer (emitted before utilities)
+    let plugin_components = crate::plugin::get_plugin_components();
+    if !plugin_components.is_empty() {
+        let mut comp_css = String::with_capacity(plugin_components.len() * 64);
+        for (name, decl) in &plugin_components {
+            let escaped = engine::escape_class(name);
+            comp_css.push('.');
+            comp_css.push_str(&escaped);
+            comp_css.push_str(" { ");
+            comp_css.push_str(decl);
+            comp_css.push_str("; }\n");
+        }
+        parts.push(comp_css);
+    }
+
     if !base_blocks.is_empty() { parts.push(base_blocks.join("\n\n")); }
 
     let mut media_keys: Vec<String> = media_blocks.keys().cloned().collect();

@@ -1,0 +1,1 @@
+{"name":"@garursaili/plugin-confetti","version":"1.0.0","description":"Confetti burst effects","type":"module","main":"./dist/index.js","types":"./dist/index.d.ts","files":["dist"],"keywords":["garur-plugin"],"peerDependencies":{"garursaili-css":"^1.5.0"},"scripts":{"build":"tsc"}}

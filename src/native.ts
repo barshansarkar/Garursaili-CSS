@@ -1,51 +1,24 @@
 // ═══════════════════════════════════════════════════════════════════
 // GarurSaili-CSS — native.ts
-// The Semantic Indian CSS Framework
-// Author: Barshan Sarkar · Malda, West Bengal, India
-// Version: 1.5.0
 // ═══════════════════════════════════════════════════════════════════
-//
-// Cross-platform native bridge — loads the correct .node binary for:
-//   • Linux x64 (glibc)   → garur_core.linux-x64-gnu.node
-//   • Linux x64 (musl)    → garur_core.linux-x64-musl.node
-//   • macOS Intel         → garur_core.darwin-x64.node
-//   • macOS Apple Silicon → garur_core.darwin-arm64.node
-//   • Windows x64         → garur_core.win32-x64-msvc.node
-//
-// Resolution order:
-//   1. Platform-specific npm package (@garursaili/<platform>-<arch>)
-//   2. Local project folder (garur_core.<target>.node)
-//   3. Package root folder (garur_core.<target>.node)
-//   4. Rust build folder (rust/garur_core.<target>.node)
-//   5. Legacy fallback (index.cjs, index.node)
-//
-// ═══════════════════════════════════════════════════════════════════
-
 import { createRequire } from "node:module";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
-// ── ESM/CJS interop ──
-// This file compiles to both ESM (.mjs) and CJS (.cjs).
-// `import.meta.url` isn't available in CJS, so we guard it.
 const requireCjs = createRequire(
   typeof import.meta !== "undefined" && import.meta.url
     ? import.meta.url
     : __filename,
 );
 
-// In CJS builds, __filename and __dirname are already global.
-// In ESM builds, we derive them from import.meta.url.
 let _filename = "";
 let _dirname = "";
 
 if (typeof __filename !== "undefined" && typeof __dirname !== "undefined") {
-  // CommonJS context
   _filename = __filename;
   _dirname = __dirname;
 } else {
-  // ESM context
   _filename = fileURLToPath(import.meta.url);
   _dirname = path.dirname(_filename);
 }
@@ -115,75 +88,56 @@ type NativeModule = {
   exportCache: () => string;
   importCache: (data: string) => boolean;
   version: () => string;
+  // ✨ Plugin System v2
+  registerPluginUtilitiesBatch: (entries: string[][]) => void;
+  registerPluginComponentsBatch: (entries: string[][]) => void;
+  registerPluginAtRules: (rules: string[]) => void;
+  registerPluginBulk: (u: string[][], c: string[][], a: string[]) => void;
+  clearPluginRegistries: () => void;
+  getPluginComponentsJson: () => string;
+  getPluginAtRulesJson: () => string;
+  getPluginUtilitiesJson: () => string;
 };
 
 // ═══════════════════════════════════════════════════════════════════
-// Platform detection
+// Platform detection (unchanged)
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Detect libc variant on Linux.
- * Returns "gnu" (glibc — Ubuntu/Debian/Fedora/Arch) or "musl" (Alpine/static).
- */
 function detectLibc(): "gnu" | "musl" {
   if (process.platform !== "linux") return "gnu";
-
   try {
-    // Node 14+ exposes this via process.report
     const report = (process as any).report?.getReport?.();
     if (report?.header?.glibcVersionRuntime) return "gnu";
     if (report?.header?.glibcVersionCompiler) return "gnu";
-
-    // Fallback: check for musl marker
     if (report?.header?.sharedObjects) {
       const soFiles: string[] = report.header.sharedObjects;
       if (soFiles.some((f) => f.includes("musl"))) return "musl";
       if (soFiles.some((f) => f.includes("libc.so.6"))) return "gnu";
     }
   } catch { /* ignore */ }
-
-  // Last resort: check filesystem
   try {
     if (fs.existsSync("/lib/ld-musl-x86_64.so.1")) return "musl";
     if (fs.existsSync("/lib/x86_64-linux-gnu/libc.so.6")) return "gnu";
   } catch { /* ignore */ }
-
-  return "gnu"; // default
+  return "gnu";
 }
 
-/**
- * Compute the canonical binary suffix for the current platform.
- * Example: "linux-x64-gnu", "darwin-arm64", "win32-x64-msvc"
- */
 function getPlatformKey(): string {
   const p = process.platform;
   const a = process.arch;
-
-  if (p === "linux") {
-    const libc = detectLibc();
-    return `linux-${a}-${libc}`;
-  }
-  if (p === "darwin") {
-    return `darwin-${a}`;
-  }
-  if (p === "win32") {
-    return `win32-${a}-msvc`;
-  }
+  if (p === "linux") return `linux-${a}-${detectLibc()}`;
+  if (p === "darwin") return `darwin-${a}`;
+  if (p === "win32") return `win32-${a}-msvc`;
   return `${p}-${a}`;
 }
 
-/**
- * All possible binary filenames for the current platform, in priority order.
- */
 function getBinaryNames(): string[] {
   const p = process.platform;
   const a = process.arch;
   const names: string[] = [];
-
   if (p === "linux" && a === "x64") {
     const libc = detectLibc();
     names.push(`garur_core.linux-x64-${libc}.node`);
-    // Fallback: try the other libc too
     names.push(`garur_core.linux-x64-${libc === "gnu" ? "musl" : "gnu"}.node`);
   } else if (p === "linux" && a === "arm64") {
     names.push("garur_core.linux-arm64-gnu.node");
@@ -197,21 +151,14 @@ function getBinaryNames(): string[] {
   } else if (p === "win32" && a === "arm64") {
     names.push("garur_core.win32-arm64-msvc.node");
   }
-
-  // Generic fallbacks (older naming schemes)
   names.push("index.cjs", "index.node");
-
   return names;
 }
 
-/**
- * All possible platform-specific npm package names, in priority order.
- */
 function getPlatformPackages(): string[] {
   const p = process.platform;
   const a = process.arch;
   const pkgs: string[] = [];
-
   if (p === "linux") {
     const libc = detectLibc();
     pkgs.push(`@garursaili/linux-${a}-${libc}`);
@@ -222,10 +169,7 @@ function getPlatformPackages(): string[] {
   } else if (p === "win32") {
     pkgs.push(`@garursaili/win32-${a}-msvc`);
   }
-
-  // Generic
   pkgs.push(`@garursaili/${p}-${a}`);
-
   return pkgs;
 }
 
@@ -242,52 +186,36 @@ function tryLoadNative(): NativeModule | null {
   loadAttempted = true;
 
   const cwd = process.cwd();
-
-  // Search paths — ordered from most-specific to most-generic
   const searchBases: string[] = [
-    path.resolve(_dirname, ".."),           // dist/.. = package root
-    path.resolve(_dirname, "../.."),        // dist/utils/.. = package root
-    _dirname,                                // dist/ itself
-    cwd,                                     // user's project root
+    path.resolve(_dirname, ".."),
+    path.resolve(_dirname, "../.."),
+    _dirname,
+    cwd,
     path.resolve(cwd, "node_modules/garursaili-css"),
     path.resolve(cwd, "node_modules/garursaili-css/dist"),
   ];
 
   const binaryNames = getBinaryNames();
   const platformPkgs = getPlatformPackages();
-
   const candidates: string[] = [];
 
-  // ── 1. Platform-specific npm packages (highest priority) ──
   for (const pkg of platformPkgs) {
     try {
       const pkgJsonPath = requireCjs.resolve(`${pkg}/package.json`);
       const pkgDir = path.dirname(pkgJsonPath);
-      for (const name of binaryNames) {
-        candidates.push(path.join(pkgDir, name));
-      }
-      if (process.env.GARUR_DEBUG) {
-        console.log(`[garur] Found platform package: ${pkg} at ${pkgDir}`);
-      }
-    } catch {
-      // Package not installed — normal on unsupported platforms
-    }
+      for (const name of binaryNames) candidates.push(path.join(pkgDir, name));
+    } catch { /* skip */ }
   }
 
-  // ── 2. Local filesystem search ──
   for (const base of searchBases) {
-    for (const name of binaryNames) {
-      candidates.push(path.join(base, name));
-    }
+    for (const name of binaryNames) candidates.push(path.join(base, name));
   }
 
-  // ── 3. Also check the sibling rust/ folder for dev mode ──
   candidates.push(path.resolve(cwd, "rust", "garur_core.node"));
   for (const name of binaryNames) {
     candidates.push(path.resolve(cwd, "rust", name));
   }
 
-  // ── Debug output ──
   if (process.env.GARUR_DEBUG) {
     console.log(`[garur] Platform: ${process.platform}-${process.arch}`);
     console.log(`[garur] Platform key: ${getPlatformKey()}`);
@@ -296,21 +224,15 @@ function tryLoadNative(): NativeModule | null {
     for (const c of candidates) console.log("  ", c);
   }
 
-  // ── Try each candidate ──
   for (const candidate of candidates) {
     if (!fs.existsSync(candidate)) continue;
-
     try {
-      // Clear require cache to allow hot-reloading during dev
       try { delete requireCjs.cache?.[candidate]; } catch { /* ignore */ }
-
       const mod = requireCjs(candidate);
       const real = mod?.default ?? mod;
-
       if (real && typeof real.build === "function") {
         native = real as NativeModule;
         loadSource = candidate;
-
         if (process.env.GARUR_DEBUG || process.env.GARUR_INFO) {
           console.log(`🦀 Garur native v${native.version()} loaded from ${candidate}`);
         }
@@ -323,16 +245,13 @@ function tryLoadNative(): NativeModule | null {
     }
   }
 
-  // ── No binary found — log helpful error ──
   if (process.env.GARUR_DEBUG) {
     console.warn(
       `[garur] ⚠️  No native binary found for ${getPlatformKey()}.\n` +
       `       Falling back to JavaScript (slower).\n` +
-      `       Expected one of: ${binaryNames.join(", ")}\n` +
-      `       Searched in: ${searchBases.join(", ")}`
+      `       Expected one of: ${binaryNames.join(", ")}`
     );
   }
-
   return null;
 }
 
@@ -342,108 +261,63 @@ tryLoadNative();
 // Public API
 // ═══════════════════════════════════════════════════════════════════
 
-export function hasNative(): boolean {
-  return native !== null;
-}
+export function hasNative(): boolean { return native !== null; }
+export function nativeVersion(): string { return native?.version() ?? "js"; }
+export function nativeSource(): string { return loadSource; }
+export function platformKey(): string { return getPlatformKey(); }
 
-export function nativeVersion(): string {
-  return native?.version() ?? "js";
-}
-
-export function nativeSource(): string {
-  return loadSource;
-}
-
-export function platformKey(): string {
-  return getPlatformKey();
-}
-
-export function initConfig(json: string): void {
-  native?.initConfig(json);
-}
-
-export function initHandler(json: string): void {
-  native?.initHandler(json);
-}
+export function initConfig(json: string): void { native?.initConfig(json); }
+export function initHandler(json: string): void { native?.initHandler(json); }
 
 export function parse(token: string): ParsedToken {
-  if (native) {
-    try { return native.parse(token); } catch { /* fall */ }
-  }
+  if (native) { try { return native.parse(token); } catch { /* fall */ } }
   return parseJS(token);
 }
 
 export function parseBatch(tokens: string[]): (ParsedToken | null)[] {
-  if (native) {
-    try { return native.parseBatch(tokens); } catch { /* fall */ }
-  }
-  return tokens.map((t) => {
-    try { return parseJS(t); } catch { return null; }
-  });
+  if (native) { try { return native.parseBatch(tokens); } catch { /* fall */ } }
+  return tokens.map((t) => { try { return parseJS(t); } catch { return null; } });
 }
 
 export function lex(s: string): string[] {
-  if (native) {
-    try { return native.lex(s); } catch { /* fall */ }
-  }
+  if (native) { try { return native.lex(s); } catch { /* fall */ } }
   return s.split(/\s+/).filter(Boolean);
 }
 
-export function clearParseCache(): void {
-  native?.clearParseCache();
-}
+export function clearParseCache(): void { native?.clearParseCache(); }
 
 export function build(cls: string, inline = false): string | null {
-  if (native) {
-    try { return native.build(cls, inline); } catch { return null; }
-  }
+  if (native) { try { return native.build(cls, inline); } catch { return null; } }
   return null;
 }
 
 export function buildBatch(classes: string[]): (string | null)[] {
-  if (native) {
-    try { return native.buildBatch(classes); } catch { /* fall */ }
-  }
+  if (native) { try { return native.buildBatch(classes); } catch { /* fall */ } }
   return classes.map(() => null);
 }
 
-export function clearCache(): void {
-  native?.clearCache();
-}
-
-export function warmupClasses(classes: string[]): void {
-  native?.warmupClasses(classes);
-}
+export function clearCache(): void { native?.clearCache(); }
+export function warmupClasses(classes: string[]): void { native?.warmupClasses(classes); }
 
 export function hasUtility(cls: string): boolean {
-  if (native) {
-    try { return native.hasUtility(cls); } catch { /* fall */ }
-  }
+  if (native) { try { return native.hasUtility(cls); } catch { /* fall */ } }
   return false;
 }
 
 export function extractClasses(content: string): string[] {
-  if (native) {
-    try { return native.extractClasses(content); } catch { /* fall */ }
-  }
+  if (native) { try { return native.extractClasses(content); } catch { /* fall */ } }
   return extractJS(content);
 }
 
 export function extractFromFile(p: string): string[] | null {
-  if (native) {
-    try { return native.extractFromFile(p); } catch { /* fall */ }
-  }
+  if (native) { try { return native.extractFromFile(p); } catch { /* fall */ } }
   return null;
 }
 
 export function scanFiles(files: string[]): { path: string; classes: string[] }[] {
-  if (native) {
-    try { return native.scanFiles(files); } catch { /* fall */ }
-  }
+  if (native) { try { return native.scanFiles(files); } catch { /* fall */ } }
   return [];
 }
-
-// ─── Brace expansion (JS-side workaround) ───
 
 function expandBraces(pattern: string): string[] {
   const match = pattern.match(/\{([^{}]+)\}/);
@@ -460,22 +334,16 @@ function expandBraces(pattern: string): string[] {
 export function findFiles(cwd: string, inc: string[], ign: string[]): string[] {
   const expandedInc = inc.flatMap(expandBraces);
   const expandedIgn = ign.flatMap(expandBraces);
-
   if (process.env.GARUR_DEBUG) {
     console.log("[garur] findFiles patterns:", expandedInc);
   }
-
-  if (native) {
-    try { return native.findFiles(cwd, expandedInc, expandedIgn); } catch { /* fall */ }
-  }
+  if (native) { try { return native.findFiles(cwd, expandedInc, expandedIgn); } catch { /* fall */ } }
   return [];
 }
 
 export function runSsc(files: string[], configJson: string): string {
   if (native) {
-    try {
-      return native.runSsc(files, configJson);
-    } catch (e) {
+    try { return native.runSsc(files, configJson); } catch (e) {
       if (process.env.GARUR_DEBUG) console.error("runSsc failed:", e);
     }
   }
@@ -483,54 +351,36 @@ export function runSsc(files: string[], configJson: string): string {
 }
 
 export function minifyCss(css: string): string {
-  if (native) {
-    try { return native.minifyCss(css); } catch { /* fall */ }
-  }
+  if (native) { try { return native.minifyCss(css); } catch { /* fall */ } }
   return css;
 }
 
 export function hashString(s: string): string {
-  if (native) {
-    try { return native.hashString(s); } catch { /* fall */ }
-  }
+  if (native) { try { return native.hashString(s); } catch { /* fall */ } }
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
   return Math.abs(h).toString(16).padStart(16, "0");
 }
 
 export function hashFile(p: string): string {
-  if (native) {
-    try { return native.hashFile(p); } catch { /* fall */ }
-  }
+  if (native) { try { return native.hashFile(p); } catch { /* fall */ } }
   return "";
 }
 
-// ─── Cache stats ───
-
 export function getCacheStats(): NativeCacheStats {
   const def: NativeCacheStats = {
-    build_hits: 0,
-    build_misses: 0,
-    parse_hits: 0,
-    parse_misses: 0,
-    build_entries: 0,
-    parse_entries: 0,
-    build_hit_rate: 0,
-    parse_hit_rate: 0,
+    build_hits: 0, build_misses: 0,
+    parse_hits: 0, parse_misses: 0,
+    build_entries: 0, parse_entries: 0,
+    build_hit_rate: 0, parse_hit_rate: 0,
   };
-
   if (native && typeof native.cacheStats === "function") {
     try {
       const raw: any = native.cacheStats();
-
       let data: any = raw;
       if (typeof raw === "string") {
-        try { data = JSON.parse(raw); } catch {
-          if (process.env.GARUR_DEBUG) console.error("cacheStats: JSON parse failed:", raw);
-          return def;
-        }
+        try { data = JSON.parse(raw); } catch { return def; }
       }
-
       if (data && typeof data === "object") {
         const num = (x: any): number => {
           if (typeof x === "number" && !isNaN(x) && isFinite(x)) return x;
@@ -549,50 +399,32 @@ export function getCacheStats(): NativeCacheStats {
           parse_hit_rate: num(data.parse_hit_rate),
         };
       }
-    } catch (e) {
-      if (process.env.GARUR_DEBUG) console.error("cacheStats failed:", e);
-    }
+    } catch { /* */ }
   }
   return def;
 }
 
 export function resetCacheStats(): void {
   if (native && typeof native.resetCacheStats === "function") {
-    try { native.resetCacheStats(); } catch { /* ignore */ }
+    try { native.resetCacheStats(); } catch { /* */ }
   }
 }
 
-/**
- * Full SSC build with cache stats.
- * Resets counters, runs build, then reads stats.
- */
 export function runSscWithStats(files: string[], configJson: string): SscStats {
   resetCacheStats();
-
   const css = runSsc(files, configJson);
   if (!css) {
     return {
-      css: "",
-      filesScanned: files.length,
-      uniqueClasses: 0,
-      cacheHits: 0,
-      cacheMisses: 0,
-      parseHits: 0,
-      parseMisses: 0,
-      buildEntries: 0,
-      buildHitRate: 0,
+      css: "", filesScanned: files.length, uniqueClasses: 0,
+      cacheHits: 0, cacheMisses: 0, parseHits: 0, parseMisses: 0,
+      buildEntries: 0, buildHitRate: 0,
     };
   }
-
   const stats = getCacheStats();
-
   const classRe = /\.([a-zA-Z][a-zA-Z0-9_\\/-]*)/g;
   const seen = new Set<string>();
   let m: RegExpExecArray | null;
-  while ((m = classRe.exec(css)) !== null) {
-    seen.add(m[1].replace(/\\/g, ""));
-  }
-
+  while ((m = classRe.exec(css)) !== null) seen.add(m[1].replace(/\\/g, ""));
   return {
     css,
     filesScanned: files.length,
@@ -606,24 +438,12 @@ export function runSscWithStats(files: string[], configJson: string): SscStats {
   };
 }
 
-// ───────────────────────────────────────────────
-// Persistent cache (cross-process)
-// ───────────────────────────────────────────────
-
 export function exportCache(): string {
-  try {
-    return (native as any)?.exportCache?.() ?? "";
-  } catch {
-    return "";
-  }
+  try { return (native as any)?.exportCache?.() ?? ""; } catch { return ""; }
 }
 
 export function importCache(data: string): boolean {
-  try {
-    return (native as any)?.importCache?.(data) ?? false;
-  } catch {
-    return false;
-  }
+  try { return (native as any)?.importCache?.(data) ?? false; } catch { return false; }
 }
 
 export function clearFileCache(): void {
@@ -646,7 +466,99 @@ export function finalizeCacheEntries(): number {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// JS Fallbacks (used only when native binary is missing)
+// ✨ Plugin System v2 — NAPI bridges
+// ═══════════════════════════════════════════════════════════════════
+
+export function registerPluginUtilitiesBatch(entries: [string, string][]): void {
+  if (native && typeof (native as any).registerPluginUtilitiesBatch === "function") {
+    try {
+      const payload = entries.map(([k, v]) => [k, v]);
+      (native as any).registerPluginUtilitiesBatch(payload);
+    } catch { /* fall */ }
+  }
+}
+
+export function registerPluginComponentsBatch(entries: [string, string][]): void {
+  if (native && typeof (native as any).registerPluginComponentsBatch === "function") {
+    try {
+      const payload = entries.map(([k, v]) => [k, v]);
+      (native as any).registerPluginComponentsBatch(payload);
+    } catch { /* fall */ }
+  }
+}
+
+export function registerPluginAtRules(rules: string[]): void {
+  if (native && typeof (native as any).registerPluginAtRules === "function") {
+    try { (native as any).registerPluginAtRules(rules); } catch { /* fall */ }
+  }
+}
+
+/**
+ * ✨ Bulk register: 1 ArcSwap clone + 1 cache clear for ALL entries.
+ * Used by plugin_runner.ts to avoid N clones + N cache clears.
+ */
+export function registerPluginBulk(
+  utilities: [string, string][],
+  components: [string, string][],
+  atRules: string[],
+): void {
+  if (!native || typeof (native as any).registerPluginBulk !== "function") {
+    console.error("[napi] ❌ registerPluginBulk binding missing");
+    return;
+  }
+  try {
+    const u = utilities.map(([k, v]) => [k, v]);
+    const c = components.map(([k, v]) => [k, v]);
+    if (process.env.GARUR_DEBUG) {
+      console.log(`[napi] registerPluginBulk: ${u.length} utils, ${c.length} comp, ${atRules.length} at-rules`);
+      if (u.length > 0) console.log(`[napi] First entry:`, u[0]);
+    }
+    (native as any).registerPluginBulk(u, c, atRules);
+    if (process.env.GARUR_DEBUG) {
+      console.log(`[napi] registerPluginBulk ✓ DONE`);
+    }
+  } catch (e) {
+    console.error("[napi] ❌ registerPluginBulk FAILED:", e);
+    throw e;   // ← Don't swallow!
+  }
+}
+
+export function clearPluginRegistries(): void {
+  if (native && typeof (native as any).clearPluginRegistries === "function") {
+    try { (native as any).clearPluginRegistries(); } catch { /* fall */ }
+  }
+}
+
+export function getPluginComponentsJson(): string {
+  if (native && typeof (native as any).getPluginComponentsJson === "function") {
+    try { return (native as any).getPluginComponentsJson(); } catch { /* fall */ }
+  }
+  return "[]";
+}
+
+export function getPluginAtRulesJson(): string {
+  if (native && typeof (native as any).getPluginAtRulesJson === "function") {
+    try { return (native as any).getPluginAtRulesJson(); } catch { /* fall */ }
+  }
+  return "[]";
+}
+
+export function getPluginUtilitiesJson(): string {
+  if (native && typeof (native as any).getPluginUtilitiesJson === "function") {
+    try { return (native as any).getPluginUtilitiesJson(); } catch { /* fall */ }
+  }
+  return "[]";
+}
+
+export function pluginUtilityCount(): number {
+  if (native && typeof (native as any).pluginUtilityCount === "function") {
+    try { return (native as any).pluginUtilityCount(); } catch { /* fall */ }
+  }
+  return 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// JS Fallbacks
 // ═══════════════════════════════════════════════════════════════════
 
 function parseJS(token: string): ParsedToken {
@@ -655,7 +567,6 @@ function parseJS(token: string): ParsedToken {
   let neg = false, imp = false;
   while (raw.startsWith("!")) { imp = true; raw = raw.slice(1); }
   if (raw.startsWith("-")) { neg = true; raw = raw.slice(1); }
-
   const bracket = raw.indexOf("[");
   if (bracket !== -1) {
     const close = raw.lastIndexOf("]");
@@ -682,40 +593,66 @@ function extractJS(content: string): string[] {
   return Array.from(out);
 }
 
+
+// ═══════════════════════════════════════════════════════════════════
+// ✨ ART / FST Prefix Index (for Lazy Loading)
+// ═══════════════════════════════════════════════════════════════════
+
+export function buildPrefixIndex(entries: [string, string][]): void {
+  if (native && typeof (native as any).buildPrefixIndex === "function") {
+    try {
+      const payload = entries.map(([k, v]) => [k, v]);
+      (native as any).buildPrefixIndex(payload);
+    } catch { /* fall */ }
+  }
+}
+
+export function findMatchingPlugins(classes: string[]): string[] {
+  if (native && typeof (native as any).findMatchingPlugins === "function") {
+    try {
+      return (native as any).findMatchingPlugins(classes);
+    } catch { /* fall */ }
+  }
+  return [];
+}
+
+export function clearPrefixIndex(): void {
+  if (native && typeof (native as any).clearPrefixIndex === "function") {
+    try { (native as any).clearPrefixIndex(); } catch { /* fall */ }
+  }
+}
+export function buildSpacingIndex(entries: [string, string][]): void {
+  if (native && typeof (native as any).buildSpacingIndex === "function") {
+    try { (native as any).buildSpacingIndex(entries); } catch { /* fall */ }
+  }
+}
 // ═══════════════════════════════════════════════════════════════════
 // Default export
 // ═══════════════════════════════════════════════════════════════════
 
 export default {
-  hasNative,
-  nativeVersion,
-  nativeSource,
-  platformKey,
-  initConfig,
-  initHandler,
-  parse,
-  parseBatch,
-  lex,
-  clearParseCache,
-  build,
-  buildBatch,
-  clearCache,
-  warmupClasses,
-  hasUtility,
-  extractClasses,
-  extractFromFile,
-  scanFiles,
-  findFiles,
-  runSsc,
-  runSscWithStats,
-  minifyCss,
-  hashString,
-  hashFile,
-  getCacheStats,
-  resetCacheStats,
-  exportCache,
-  importCache,
-  clearFileCache,
-  clearFinalizeCache,
-  finalizeCacheEntries,
+  hasNative, nativeVersion, nativeSource, platformKey,
+  initConfig, initHandler,
+  parse, parseBatch, lex, clearParseCache,
+  build, buildBatch, clearCache, warmupClasses, hasUtility,
+  extractClasses, extractFromFile, scanFiles, findFiles,
+  runSsc, runSscWithStats, minifyCss,
+  hashString, hashFile,
+  getCacheStats, resetCacheStats,
+  exportCache, importCache,
+  clearFileCache, clearFinalizeCache, finalizeCacheEntries,
+  // ✨ Plugin System v2
+  registerPluginUtilitiesBatch,
+  registerPluginComponentsBatch,
+  registerPluginAtRules,
+  registerPluginBulk,
+  clearPluginRegistries,
+  getPluginComponentsJson,
+  getPluginAtRulesJson,
+  getPluginUtilitiesJson,
+  pluginUtilityCount,
+    buildPrefixIndex,
+  findMatchingPlugins,
+  clearPrefixIndex,
+  buildSpacingIndex,
 };

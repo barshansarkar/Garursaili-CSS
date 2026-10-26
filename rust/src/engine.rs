@@ -6,7 +6,7 @@
 // GarurSaili-CSS 
 // The Semantic Indian CSS Framework
 // Author: Barshan Sarkar · Malda, West Bengal, India
-// Version: 1.4.0
+// Version: 1.5.4
 // ═══════════════════════════════════════════════════════════════════
 use crate::palette_default;
 use crate::plugin;
@@ -466,8 +466,13 @@ pub fn clear_cache() {
     BUILD_CACHE.clear();
     PARSE_CACHE.clear();
     FILE_CACHE.clear();
-    FINALIZE_CACHE.clear();   // ← new line
+    FINALIZE_CACHE.clear();
     reset_cache_stats();
+}
+
+/// ✨ NEW: Clear only BUILD_CACHE. Called when plugins register new utilities.
+pub fn clear_build_cache() {
+    BUILD_CACHE.clear();
 }
 
 pub fn clear_parse_cache() {
@@ -1118,9 +1123,19 @@ pub fn build(cls: &str, inline: bool) -> Option<Arc<str>> {
     }
 }
 
+
 #[inline]
 fn render_simple(cls: &str, decl: &str) -> Arc<str> {
     let escaped = escape_class(cls);
+
+    // ✨ CRITICAL FIX: if decl contains nested `&` selectors,
+    // expand them into proper sibling rules. Otherwise lightningcss
+    // silently drops the entire rule (invalid `&` in CSS).
+    if decl.contains('&') {
+        let base_sel = format!(".{}", escaped);
+        return Arc::from(expand_nested_decls(decl, &base_sel));
+    }
+
     let mut s = String::with_capacity(escaped.len() + decl.len() + 8);
     s.push('.');
     s.push_str(&escaped);
@@ -1129,7 +1144,6 @@ fn render_simple(cls: &str, decl: &str) -> Arc<str> {
     s.push_str("; }");
     Arc::from(s)
 }
-
 fn build_inner(cls: &str, inline: bool) -> Option<Arc<str>> {
     let (prefixes, raw_base) = split_prefixes(cls);
 
@@ -1149,6 +1163,18 @@ fn build_inner(cls: &str, inline: bool) -> Option<Arc<str>> {
             if let Some(d) = utils.get(base) {
                 if inline { return Some(Arc::from(d.as_str())); }
                 return Some(render_simple(cls, d));
+            }
+
+            // ✨ NEW: plugin utilities (hot-swappable, static)
+            if let Some(pd) = plugin::lookup_utility(base) {
+                if inline { return Some(pd); }
+                return Some(render_simple(cls, &pd));
+            }
+
+            // ✨ NEW: plugin components (emitted in components layer)
+            if let Some(pc) = plugin::lookup_component(base) {
+                if inline { return Some(pc); }
+                return Some(render_simple(cls, &pc));
             }
 
             // ✨ Easy Mode: color default shade
@@ -1337,6 +1363,8 @@ fn build_inner(cls: &str, inline: bool) -> Option<Arc<str>> {
         }
     } else {
         utils.get(&base).cloned()
+            .or_else(|| plugin::lookup_utility(&base).map(|s| s.to_string()))
+            .or_else(|| plugin::lookup_component(&base).map(|s| s.to_string()))
             .or_else(|| try_color_default(&base, &utils))
     };
     drop(utils);
@@ -1457,7 +1485,36 @@ fn try_color_default(base: &str, utils: &FxHashMap<String, String>) -> Option<St
     None
 }
 fn try_dynamic_spacing(stripped: &str, neg: bool) -> Option<String> {
-        // ── Plain-numeric utilities (NO spacing multiplier) ──
+    // ═══════════════════════════════════════════════════════════════
+    // ✨ FST / ART FAST PATH — tries FIRST (microsecond lookup)
+    // ═══════════════════════════════════════════════════════════════
+    // If FST has the prefix → return immediately, skip both MAP loops.
+    // If FST misses (empty or no match) → fall through to original MAP
+    // below. NO feature loss, NO behavior change.
+    if let Some((template, rest)) = crate::prefix_index::lookup_spacing(stripped) {
+        if !rest.is_empty()
+            && !rest.contains('/')
+            && !rest.contains('%')
+            && !rest.contains('[')
+        {
+            if let Ok(n) = rest.parse::<f64>() {
+                let n_used = if neg { -n } else { n };
+                let n_str: Cow<str> = if n_used.fract() == 0.0 {
+                    Cow::Owned(format!("{}", n_used as i64))
+                } else {
+                    Cow::Owned(format!("{}", n_used))
+                };
+                let v = format!("calc(var(--spacing, 0.25rem) * {})", n_str);
+                return Some(template.replace("{0}", &v));
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // FALLBACK — ORIGINAL CODE (unchanged, feature-complete)
+    // ═══════════════════════════════════════════════════════════════
+
+    // ── Plain-numeric utilities (NO spacing multiplier) ──
     // These use raw number, not calc(var(--spacing) * N)
     const NUMERIC_MAP: &[(&str, &str)] = &[
         ("z-",             "z-index:{0}"),

@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="build/garur.css"></head>
+<body style="background:#000;color:#fff;padding:40px">
+
+  <!-- No nesting — should work -->
+  <p class="chrome-text">chrome-text (no nesting)</p>
+
+  <!-- Has nesting (&::before, &::after) — likely the problem -->
+  <div class="apple-glass-card p-8">apple-glass-card (has nesting)</div>
+
+</body>
+</html>

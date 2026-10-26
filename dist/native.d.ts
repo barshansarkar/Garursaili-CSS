@@ -54,16 +54,29 @@ export declare function hashString(s: string): string;
 export declare function hashFile(p: string): string;
 export declare function getCacheStats(): NativeCacheStats;
 export declare function resetCacheStats(): void;
-/**
- * Full SSC build with cache stats.
- * Resets counters, runs build, then reads stats.
- */
 export declare function runSscWithStats(files: string[], configJson: string): SscStats;
 export declare function exportCache(): string;
 export declare function importCache(data: string): boolean;
 export declare function clearFileCache(): void;
 export declare function clearFinalizeCache(): void;
 export declare function finalizeCacheEntries(): number;
+export declare function registerPluginUtilitiesBatch(entries: [string, string][]): void;
+export declare function registerPluginComponentsBatch(entries: [string, string][]): void;
+export declare function registerPluginAtRules(rules: string[]): void;
+/**
+ * ✨ Bulk register: 1 ArcSwap clone + 1 cache clear for ALL entries.
+ * Used by plugin_runner.ts to avoid N clones + N cache clears.
+ */
+export declare function registerPluginBulk(utilities: [string, string][], components: [string, string][], atRules: string[]): void;
+export declare function clearPluginRegistries(): void;
+export declare function getPluginComponentsJson(): string;
+export declare function getPluginAtRulesJson(): string;
+export declare function getPluginUtilitiesJson(): string;
+export declare function pluginUtilityCount(): number;
+export declare function buildPrefixIndex(entries: [string, string][]): void;
+export declare function findMatchingPlugins(classes: string[]): string[];
+export declare function clearPrefixIndex(): void;
+export declare function buildSpacingIndex(entries: [string, string][]): void;
 declare const _default: {
     hasNative: typeof hasNative;
     nativeVersion: typeof nativeVersion;
@@ -96,5 +109,18 @@ declare const _default: {
     clearFileCache: typeof clearFileCache;
     clearFinalizeCache: typeof clearFinalizeCache;
     finalizeCacheEntries: typeof finalizeCacheEntries;
+    registerPluginUtilitiesBatch: typeof registerPluginUtilitiesBatch;
+    registerPluginComponentsBatch: typeof registerPluginComponentsBatch;
+    registerPluginAtRules: typeof registerPluginAtRules;
+    registerPluginBulk: typeof registerPluginBulk;
+    clearPluginRegistries: typeof clearPluginRegistries;
+    getPluginComponentsJson: typeof getPluginComponentsJson;
+    getPluginAtRulesJson: typeof getPluginAtRulesJson;
+    getPluginUtilitiesJson: typeof getPluginUtilitiesJson;
+    pluginUtilityCount: typeof pluginUtilityCount;
+    buildPrefixIndex: typeof buildPrefixIndex;
+    findMatchingPlugins: typeof findMatchingPlugins;
+    clearPrefixIndex: typeof clearPrefixIndex;
+    buildSpacingIndex: typeof buildSpacingIndex;
 };
 export default _default;

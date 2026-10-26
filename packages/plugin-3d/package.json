@@ -1,0 +1,1 @@
+{"name":"@garursaili/plugin-3d","version":"1.0.0","description":"3D transforms, tilt cards, and depth effects","type":"module","main":"./dist/index.js","types":"./dist/index.d.ts","files":["dist"],"keywords":["garur-plugin"],"peerDependencies":{"garursaili-css":"^1.5.0"},"scripts":{"build":"tsc"}}

@@ -1,0 +1,1 @@
+{"name":"@garursaili/plugin-carousel","version":"1.0.0","description":"Carousel and slider utilities","type":"module","main":"./dist/index.js","types":"./dist/index.d.ts","files":["dist"],"keywords":["garur-plugin"],"peerDependencies":{"garursaili-css":"^1.5.0"},"scripts":{"build":"tsc"}}

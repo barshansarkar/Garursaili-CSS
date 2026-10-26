@@ -6,7 +6,7 @@
 
 [package]
 name = "garur-saili-css"
-version = "1.5.3"
+version = "1.5.4"
 edition = "2021"
 authors = ["Barshan Sarkar <barshan@garursaili.dev>"]
 description = "Native core for GarurSaili-CSS — the semantic Indian CSS framework"
@@ -34,7 +34,8 @@ walkdir      = "2"
 globset      = "0.4"
 xxhash-rust  = { version = "0.8", features = ["xxh3"] }
 base64       = "0.22"
-
+papaya = "0.2"
+fst = "0.4"
 # ── SPEED LAYER ──
 dashmap      = "6"
 arc-swap     = "1"

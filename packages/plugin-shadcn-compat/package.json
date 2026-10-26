@@ -1,0 +1,1 @@
+{"name":"@garursaili/plugin-shadcn-compat","version":"1.0.0","description":"shadcn/ui compatible tokens and components","type":"module","main":"./dist/index.js","types":"./dist/index.d.ts","files":["dist"],"keywords":["garur-plugin"],"peerDependencies":{"garursaili-css":"^1.5.0"},"scripts":{"build":"tsc"}}
