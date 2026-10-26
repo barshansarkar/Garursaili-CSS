@@ -1,12 +1,20 @@
 {
   "name": "@garursaili/darwin-arm64",
-  "version": "1.5.0",
+  "version": "1.5.4",
   "description": "GarurSaili-CSS native binary for macOS Apple Silicon (M1/M2/M3)",
-  "os": ["darwin"],
-  "cpu": ["arm64"],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
   "main": "garur_core.darwin-arm64.node",
-  "files": ["garur_core.darwin-arm64.node"],
-  "publishConfig": { "access": "public" },
+  "files": [
+    "garur_core.darwin-arm64.node"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/barshansarkar/Garursaili-CSS.git"
