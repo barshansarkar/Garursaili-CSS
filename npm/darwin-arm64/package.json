@@ -1,6 +1,6 @@
 {
   "name": "@garursaili/darwin-arm64",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "description": "GarurSaili-CSS native binary for macOS Apple Silicon (M1/M2/M3)",
   "os": [
     "darwin"

@@ -1,6 +1,6 @@
 {
   "name": "@garursaili/linux-x64-gnu",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "description": "GarurSaili-CSS native binary for Linux x64 (glibc)",
   "os": [
     "linux"

@@ -1,10 +1,8 @@
 # ═══════════════════════════════════════════════════════════════════
-# GarurSaili-CSS — Cross-Platform Build
-# The Semantic Indian CSS Framework
-# Author: Barshan Sarkar · Malda, West Bengal, India
+# GarurSaili-CSS — Cross-Platform Build & Publish
 # ═══════════════════════════════════════════════════════════════════
 
-name: Build
+name: Build & Publish
 
 on:
   push:
@@ -14,6 +12,9 @@ on:
     branches: [main]
 
 jobs:
+  # ═══════════════════════════════════════════════════════════════
+  # BUILD — 5 platforms, parallel
+  # ═══════════════════════════════════════════════════════════════
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
@@ -21,11 +22,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,  pkg: linux-x64-gnu }
-          - { os: ubuntu-latest,  target: x86_64-unknown-linux-musl, pkg: linux-x64-musl }
-          - { os: macos-latest,   target: x86_64-apple-darwin,       pkg: darwin-x64 }
-          - { os: macos-latest,   target: aarch64-apple-darwin,      pkg: darwin-arm64 }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc,    pkg: win32-x64-msvc }
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,  pkg: linux-x64-gnu,   fmt: "ELF 64-bit" }
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-musl, pkg: linux-x64-musl,  fmt: "ELF 64-bit" }
+          - { os: macos-13,       target: x86_64-apple-darwin,       pkg: darwin-x64,      fmt: "Mach-O 64-bit" }
+          - { os: macos-14,       target: aarch64-apple-darwin,      pkg: darwin-arm64,    fmt: "Mach-O 64-bit arm64" }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc,    pkg: win32-x64-msvc,  fmt: "PE32+ executable" }
 
     steps:
       - uses: actions/checkout@v4
@@ -48,40 +49,113 @@ jobs:
 
       - name: Install npm deps
         working-directory: rust
+        shell: bash
         run: npm install
 
       - name: Build native module
         working-directory: rust
         shell: bash
         run: |
+          set -euo pipefail
+          echo "═══════════════════════════════════════════════════════"
+          echo "Host:    $(uname -a 2>/dev/null || echo 'Windows')"
+          echo "Target:  ${{ matrix.target }}"
+          echo "Package: ${{ matrix.pkg }}"
+          echo "═══════════════════════════════════════════════════════"
+          
           npx napi build --platform --release --target ${{ matrix.target }}
+          
           echo ""
-          echo "=== Files in rust/ ==="
-          ls -la
-          echo ""
-          echo "=== Search all .node files ==="
-          find . -name "*.node" -type f
+          echo "=== .node files produced ==="
+          find . -name "*.node" -type f -exec ls -lh {} \;
 
-      - name: Move binary to platform folder
+      - name: Verify binary format
+        working-directory: rust
         shell: bash
         run: |
-          mkdir -p npm/${{ matrix.pkg }}
-          find . -maxdepth 3 -name "garur_core*.node" -type f -exec cp -v {} npm/${{ matrix.pkg }}/ \;
-          echo ""
-          echo "=== Files staged in npm/${{ matrix.pkg }}/ ==="
-          ls -la npm/${{ matrix.pkg }}/ || true
-          test -n "$(ls -A npm/${{ matrix.pkg }}/*.node 2>/dev/null)" || {
-            echo "❌ No .node file staged — aborting"
+          set -euo pipefail
+          
+          SRC=$(find . -name "*.node" -type f | head -1)
+          if [ -z "$SRC" ]; then
+            echo "❌ CRITICAL: napi build produced no .node file"
             exit 1
-          }
+          fi
+          
+          echo "Found: $SRC"
+          echo "Size:  $(stat -c%s "$SRC" 2>/dev/null || stat -f%z "$SRC") bytes"
+          
+          # Verify the binary is the correct format for the target
+          FORMAT=$(file "$SRC")
+          echo "Format: $FORMAT"
+          
+          if ! echo "$FORMAT" | grep -q "${{ matrix.fmt }}"; then
+            echo ""
+            echo "❌ CRITICAL: Binary format does NOT match target!"
+            echo "   Expected: ${{ matrix.fmt }}"
+            echo "   Got:      $FORMAT"
+            echo "   → napi build ignored --target flag or fell back to host"
+            exit 1
+          fi
+          
+          echo "✅ Binary format verified"
+
+      - name: Rename to canonical name
+        working-directory: rust
+        shell: bash
+        run: |
+          set -euo pipefail
+          
+          SRC=$(find . -maxdepth 1 -name "*.node" -type f | head -1)
+          DEST="garur_core.${{ matrix.pkg }}.node"
+          
+          if [ "$SRC" != "./$DEST" ] && [ "$SRC" != "$DEST" ]; then
+            echo "Renaming: $(basename "$SRC") → $DEST"
+            mv -v "$SRC" "$DEST"
+          fi
+          
+          echo ""
+          echo "=== Final rust/*.node ==="
+          ls -la *.node
+
+      - name: Stage binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          
+          mkdir -p "npm/${{ matrix.pkg }}"
+          
+          SRC="rust/garur_core.${{ matrix.pkg }}.node"
+          DEST="npm/${{ matrix.pkg }}/garur_core.${{ matrix.pkg }}.node"
+          
+          if [ ! -f "$SRC" ]; then
+            echo "❌ CRITICAL: $SRC not found"
+            ls -la rust/*.node 2>/dev/null || true
+            exit 1
+          fi
+          
+          cp -v "$SRC" "$DEST"
+          
+          SIZE=$(stat -c%s "$DEST" 2>/dev/null || stat -f%z "$DEST")
+          if [ "$SIZE" -lt 1000000 ]; then
+            echo "❌ CRITICAL: Binary too small ($SIZE bytes)"
+            exit 1
+          fi
+          
+          echo ""
+          echo "=== Staged: npm/${{ matrix.pkg }}/ ==="
+          ls -la "npm/${{ matrix.pkg }}/"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: bindings-${{ matrix.target }}
-          path: npm/${{ matrix.pkg }}/*.node
+          path: npm/${{ matrix.pkg }}/garur_core.${{ matrix.pkg }}.node
           if-no-files-found: error
+          retention-days: 7
 
+  # ═══════════════════════════════════════════════════════════════
+  # PUBLISH — only on tag push (v*)
+  # ═══════════════════════════════════════════════════════════════
   publish:
     name: Publish to npm
     runs-on: ubuntu-latest
@@ -94,7 +168,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://registry.npmjs.org
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -102,50 +176,108 @@ jobs:
           path: artifacts
 
       - name: Distribute binaries to platform folders
+        shell: bash
         run: |
+          set -euo pipefail
+          
+          echo "═══════════════════════════════════════════════════════"
+          echo "Downloaded artifacts:"
+          find artifacts -type f -name "*.node" -exec ls -lh {} \;
+          echo "═══════════════════════════════════════════════════════"
+          
           for dir in artifacts/bindings-*; do
             target=$(basename "$dir" | sed 's/bindings-//')
+            
             case "$target" in
               x86_64-unknown-linux-gnu)  pkg=linux-x64-gnu ;;
               x86_64-unknown-linux-musl) pkg=linux-x64-musl ;;
               x86_64-apple-darwin)       pkg=darwin-x64 ;;
               aarch64-apple-darwin)      pkg=darwin-arm64 ;;
               x86_64-pc-windows-msvc)    pkg=win32-x64-msvc ;;
+              *) echo "❌ Unknown target: $target"; exit 1 ;;
             esac
-            mkdir -p npm/$pkg
-            cp -v "$dir"/*.node npm/$pkg/ || true
+            
+            mkdir -p "npm/$pkg"
+            
+            SRC="$dir/garur_core.$pkg.node"
+            DEST="npm/$pkg/garur_core.$pkg.node"
+            
+            if [ ! -f "$SRC" ]; then
+              echo "❌ CRITICAL: $SRC missing"
+              ls -la "$dir" 2>/dev/null || true
+              exit 1
+            fi
+            
+            cp -v "$SRC" "$DEST"
           done
+          
+          echo ""
+          echo "=== Final distribution ==="
           find npm -type f -name "*.node" -exec ls -lh {} \;
 
-      - name: Publish platform packages
+      - name: Verify platform package.json files
+        shell: bash
         run: |
+          set -euo pipefail
+          
           for pkg_dir in npm/*/; do
             pkg_name=$(basename "$pkg_dir")
-            if [ ! -f "$pkg_dir"/*.node ]; then
-              echo "⚠️  Skipping @garursaili/$pkg_name (no .node file)"
-              continue
-            fi
+            node -e "
+              const fs = require('fs');
+              const p = '$pkg_dir/package.json';
+              const pkg = JSON.parse(fs.readFileSync(p, 'utf-8'));
+              const expected = 'garur_core.$pkg_name.node';
+              if (!pkg.files || !pkg.files.includes(expected)) {
+                pkg.files = [expected];
+                fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n');
+                console.log('✅ Fixed files: ' + p);
+              } else {
+                console.log('✓ ' + pkg.name + ' files field OK');
+              }
+            "
+          done
 
+      - name: Publish platform packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          
+          for pkg_dir in npm/*/; do
+            pkg_name=$(basename "$pkg_dir")
+            expected="garur_core.$pkg_name.node"
+            
+            if [ ! -f "$pkg_dir$expected" ]; then
+              echo "❌ CRITICAL: @garursaili/$pkg_name — $expected missing"
+              ls -la "$pkg_dir" || true
+              exit 1
+            fi
+            
+            SIZE=$(stat -c%s "$pkg_dir$expected")
+            if [ "$SIZE" -lt 1000000 ]; then
+              echo "❌ CRITICAL: @garursaili/$pkg_name — binary too small ($SIZE bytes)"
+              exit 1
+            fi
+            
             PKG_VERSION=$(node -p "require('./$pkg_dir/package.json').version")
-
+            
             if npm view "@garursaili/$pkg_name@$PKG_VERSION" version 2>/dev/null; then
-              echo "⏭️  @garursaili/$pkg_name@$PKG_VERSION already published — skipping"
+              echo "⏭️  @garursaili/$pkg_name@$PKG_VERSION already published"
               continue
             fi
-
-            echo "📦 Publishing @garursaili/$pkg_name@$PKG_VERSION..."
+            
+            echo "📦 Publishing @garursaili/$pkg_name@$PKG_VERSION (binary: $SIZE bytes)"
             (cd "$pkg_dir" && npm publish --access public)
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Check if main package version already published
+      - name: Check main package
         id: check
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
           if npm view garursaili-css@$PKG_VERSION version 2>/dev/null; then
             echo "already_published=true" >> $GITHUB_OUTPUT
-            echo "⚠️  v$PKG_VERSION already exists on npm — will skip publish"
+            echo "⚠️  v$PKG_VERSION already on npm — skipping main publish"
           else
             echo "already_published=false" >> $GITHUB_OUTPUT
             echo "✅ v$PKG_VERSION is new — will publish"
