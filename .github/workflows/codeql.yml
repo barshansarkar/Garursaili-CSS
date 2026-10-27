@@ -6,48 +6,53 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: '0 0 * * 1'  # Mondays 00:00 UTC
+    - cron: '0 0 * * 1'
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     strategy:
       fail-fast: false
       matrix:
         language: ['javascript-typescript', 'rust']
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@5c8ea125689a2c5ae2672d1d914ac4bcd95d1b4b  # v3
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
 
-      - name: Setup Rust (only for Rust analysis)
+      - name: Setup Rust
         if: matrix.language == 'rust'
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec  # stable
 
-      - name: Setup Node (only for JS/TS analysis)
+      - name: Setup Node
         if: matrix.language == 'javascript-typescript'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: 20
 
-      - name: Install deps (only for JS/TS)
+      - name: Install deps (JS/TS)
         if: matrix.language == 'javascript-typescript'
         run: npm install --no-audit --no-fund
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@5c8ea125689a2c5ae2672d1d914ac4bcd95d1b4b  # v3
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@5c8ea125689a2c5ae2672d1d914ac4bcd95d1b4b  # v3
         with:
           category: "/language:${{ matrix.language }}"

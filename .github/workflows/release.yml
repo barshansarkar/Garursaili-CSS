@@ -1,3 +1,4 @@
+
 # ═══════════════════════════════════════════════════════════════════
 # GarurSaili-CSS — Cross-Platform Build & Publish
 # The Semantic Indian CSS Framework
@@ -26,6 +27,8 @@ jobs:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -38,15 +41,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: 20
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec  # stable
         with:
           targets: ${{ matrix.target }}
 
@@ -100,13 +103,11 @@ jobs:
           echo "Found: $SRC"
           echo "Size:  $SIZE bytes"
 
-          # Sanity size check (> 1 MB)
           if [ "$SIZE" -lt 1000000 ]; then
             echo "❌ CRITICAL: Binary too small ($SIZE bytes < 1 MB)"
             exit 1
           fi
 
-          # ⚠️ Byte-level magic check (works on all platforms, no `file` command dependency)
           MAGIC_HEX=$(od -An -tx1 -N4 "$SRC" | tr -d ' \n' | tr 'A-F' 'a-f')
           echo "Magic: $MAGIC_HEX"
 
@@ -180,13 +181,13 @@ jobs:
           ls -la "npm/${{ matrix.pkg }}/"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: bindings-${{ matrix.target }}
           path: npm/${{ matrix.pkg }}/garur_core.${{ matrix.pkg }}.node
           if-no-files-found: error
           retention-days: 7
-          compression-level: 0  # already compressed binary
+          compression-level: 0
 
   # ═══════════════════════════════════════════════════════════════
   # PUBLISH — only on tag push
@@ -199,21 +200,21 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      id-token: write       # required for SLSA provenance
-      attestations: write   # required for attestation upload
+      id-token: write
+      attestations: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           path: artifacts
 
@@ -358,7 +359,7 @@ jobs:
 
       - name: Attest build provenance
         if: steps.check.outputs.already_published == 'false'
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@92c65d2898f1f53cfdc910b962cecff86e7f8fcc  # v1
         with:
           subject-path: |
             dist/**/*.js
